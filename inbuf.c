@@ -129,7 +129,7 @@ inbuf_keep(long pos, struct inbuf *inb)
 	return -1;
 
     inb->okeep[inb->nkeep++] = inb->keep;
-    if (pos < inb->keep)
+    if (inb->keep == -1 || pos < inb->keep)
 	inb->keep = pos;
 
     return 0;
