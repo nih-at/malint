@@ -1,0 +1,11 @@
+  This is malint, an MPEG Audio stream validator.
+
+  For generic installation instructions, see file `INSTALL'.
+
+  If you make a binary distribution, please include a pointer to the
+distribution site:
+	ftp.giga.or.at /pub/nih/malint
+	http://ftp.giga.or.at/pub/nih/malint
+The latest version can always be found there.
+
+Mail suggestions and bug reports to <dillo@giga.or.at>.

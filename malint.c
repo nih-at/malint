@@ -5,58 +5,24 @@
 #include <string.h>
 
 #include "config.h"
+#include "malint.h"
 #include "mpg123.h"
 #include "inbuf.h"
+#include "mpeg.h"
+#include "vbr.h"
 
 void build_length_table(int *table);
-int process_file(FILE *f, char *fname);
-int resync(long *lp, unsigned long *hp, struct inbuf *ib, int doout);
-
-extern int _mp3_samp_tab[2][4];
-extern int _mp3_bit_tab[2][16][3];
-int _mp3_jsb_tab[3][4] = {
-    { 4, 8, 12, 16 },
-    { 4, 8, 12, 16},
-    { 0, 4,  8, 16}
-};
-
-#define MPEG_VERSION(h)	(2-(((h)&0x00080000)>>19))
-#define MPEG_LAYER(h)	(4-(((h)&0x00060000)>>17))
-#define MPEG_CRC(h)	(!((h)&0x00010000))
-#define MPEG_BITRATE_R(h)  (((h)&0x0000f000)>>12)
-#define MPEG_BITRATE(h)	(_mp3_bit_tab[2-MPEG_VERSION(h)]\
-				     [MPEG_BITRATE_R(h)][MPEG_LAYER(h)-1])
-#define MPEG_SAMPFREQ_R(h) (((h)&0x00000c00)>>10)
-#define MPEG_SAMPFREQ(h) (_mp3_samp_tab[2-MPEG_VERSION(h)][MPEG_SAMPFREQ_R(h)])
-#define MPEG_PADDING(h)	(((h)&0x00000200)>>9)
-#define MPEG_PRIV(h)	(((h)&0x00000100)>>8)
-#define MPEG_MODE(h)	(((h)&0x000000c0)>>6)
-#define MPEG_MODEEXT(h)	(((h)&0x00000030)>>4)
-#define MPEG_COPY(h)	(!((h)&0x00000008))
-#define MPEG_ORIG(h)	(!((h)&0x00000004))
-#define MPEG_EMPH(h)	((h)&0x00000003)
-
-#define MPEG_FRLEN(h)	(table[((h)&0x000fffe0)>>9])
-#define MPEG_JSBOUND(h)	(_mp3_jsb_tab[MPEG_LAYER(h)-1][MPEG_MODEEXT(h)])
-#define MPEG_SILEN(h)   (MPEG_VERSION(h) == 1 \
-			 ? (MPEG_MODE(h) == MPEG_MODE_SINGLE ? 17 : 32) \
-			 : (MPEG_MODE(h) == MPEG_MODE_SINGLE ?  9 : 17))
-
-#define MPEG_MODE_STEREO	0x0
-#define MPEG_MODE_JSTEREO	0x1
-#define MPEG_MODE_DUAL		0x2
-#define MPEG_MODE_SINGLE	0x3
 
 
 
-static char version_out[] = PACKAGE " " VERSION "\n\
+static char version_out[] = "MPEG Audio lint (" PACKAGE ") " VERSION "\n\
 Copyright (C) 2000 Dieter Baron\n"
 PACKAGE " comes with ABSOLUTELY NO WARRANTY, to the extent permitted by law.\n\
 You may redistribute copies of\n"
 PACKAGE " under the terms of the GNU General Public License.\n\
 For more information about these matters, see the files named COPYING.\n";
 
-static char help_head[] = PACKAGE " " VERSION
+static char help_head[] = "MPEG Audio lint (" PACKAGE ") " VERSION
 " by Dieter Baron <dillo@giga.or.at>\n\n";
 
 #define OPTIONS	"hVIEcCpPgGdD"
@@ -84,7 +50,7 @@ static char help_tail[] = "\n\
   -V, --version            display version number\n\
   -I, --fast-info          display only info, do not parse whole file\n\
   -E, --error              display only error diagnostics\n\
-  -c, --crc                check CRC (layer 3 only)\n\
+  -c, --crc                check CRC\n\
   -C, --no-crc             do not check CRC\n\
   -p, --padding            check for missing padding in last frame\n\
   -P, --no-padding         do not check for missing padding in last frame\n\
@@ -102,54 +68,10 @@ int table[2048];
 char *prg;
 int output;
 
-/*
-#define GET_LONG(x)	((((unsigned long)((x)[0]))<<24) \
-                         | (((unsigned long)((x)[1]))<<16) \
-                         | (((unsigned long)((x)[2]))<<8) \
-		         (unsigned long)(x)[3])
-*/
+
 
-#define GET_LONG(x)	(((x)[0]<<24)|((x)[1]<<16)|((x)[2]<<8)|(x)[3])
-#define GET_INT3(x)	(((x)[0]<<16)|((x)[1]<<8)|(x)[2])
-#define GET_SHORT(x)	(((x)[0]<<8)|(x)[1])
-#define GET_ID3LEN(x)	((((x)[0]&0x7f)<<21)|(((x)[1]&0x7f)<<14) \
-			 |(((x)[2]&0x7f)<<7)|((x)[3]&0x7f))
-
-#define LONG_TO_ID3LEN(l)	((((l)&0x7f000000)>>3) \
-				 | (((l)&0x7f0000)>>2) \
-				 | (((l)&0x7f00)>>1) \
-				 | (((l)&0x7f)))
-
-#define IS_SYNC(h)	(((h)&0xfff00000) == 0xfff00000)
-#define IS_MPEG(h)	(IS_SYNC(h) && MPEG_FRLEN(h))
-#define IS_ID3v1(h)	(((h)&0xffffff00) == (('T'<<24)|('A'<<16)|('G'<<8)))
-#define IS_ID3v2(h)	(((h)&0xffffff00) == (('I'<<24)|('D'<<16)|('3'<<8)))
-#define IS_ID3(h)	(IS_ID3v1(h) || IS_ID3v2(h))
-#define IS_VALID(h)	(IS_MPEG(h) || IS_ID3(h))
-#define IS_XING(h)	((h) == (('X'<<24)|('i'<<16)|('n'<<8)|('g')))
-
-#define OUT_TAG			0x0001
-#define OUT_TAG_CONTENTS	0x0002
-#define OUT_TAG_SHORT		0x2000
-#define OUT_PLAYTIME		0x8000
-#define OUT_HEAD_1ST		0x0004
-#define OUT_FASTINFO_ONLY	0x4000
-#define OUT_HEAD_CHANGE		0x0008
-#define OUT_HEAD_ILLEGAL	0x0010
-#define OUT_RESYNC_SKIP		0x0020
-#define OUT_RESYNC_BAILOUT	0x0040
-#define OUT_CRC_ERROR		0x0080
-#define OUT_BITR_OVERFLOW	0x0100
-#define OUT_BITR_FRAME_OVER	0x0200
-#define OUT_BITR_GAP		0x0400
-#define OUT_LFRAME_SHORT	0x0800
-#define OUT_LFRAME_PADDING	0x1000
-
-#define OUT_M_ERROR (OUT_TAG_SHORT|OUT_HEAD_CHANGE \
-		     |OUT_HEAD_ILLEGAL|OUT_RESYNC_SKIP|OUT_RESYNC_BAILOUT \
-		     |OUT_CRC_ERROR|OUT_BITR_OVERFLOW|OUT_BITR_FRAME_OVER \
-		     |OUT_LFRAME_SHORT) \
-
+int process_file(FILE *f, char *fname);
+int resync(long *lp, unsigned long *hp, struct inbuf *ib, int inframe);
 
 static void crc_init(void);
 static void crc_update(int *crc, unsigned char b);
@@ -256,11 +178,12 @@ main(int argc, char **argv)
 int
 process_file(FILE *f, char *fname)
 {
+    struct vbr *vbr;
     struct inbuf *ib;
-    int j, n, crc_f, crc_c;
+    int j, n, crc_f, crc_c, i;
     int bitres, frlen, frback;
-    long l, lresync, len, nframes;
-    unsigned long h, h_old, h_next;
+    long l, lresync, len, nframes, bitr;
+    unsigned long h, h_old, h_next, h_change_mask;
     unsigned char b[130], *p;
 
     out_start(fname);
@@ -286,12 +209,14 @@ process_file(FILE *f, char *fname)
 
     ib = inbuf_new(f, len);
 
-    nframes = 0;
+    vbr = NULL;
+    bitr = nframes = 0;
     bitres = 0;
     l = 0;
     h_old = 0;
-    while (inbuf_getlong(&h, l, ib) >= 0) {
+    h_change_mask = 0xfffffdcf;
 
+    while (inbuf_getlong(&h, l, ib) >= 0) {
     resynced:
 	if (IS_MPEG(h)) {
 	    n = j = MPEG_FRLEN(h);
@@ -301,19 +226,39 @@ process_file(FILE *f, char *fname)
 	    inbuf_unkeep(ib);
 	    if (!IS_VALID(h_next)) {
 		lresync = l;
-		if (resync(&lresync, &h_next, ib, 0) >= 0)
+		if (resync(&lresync, &h_next, ib, 1) >= 0)
 		    n = ((lresync-l) < j ? (lresync-l) : j);
 	    }
 	    n = inbuf_copy(&p, l, n, ib);
 
 	    if (MPEG_LAYER(h) == 3 && IS_XING(GET_LONG(p+4+MPEG_SILEN(h)))) {
-		/* XXX: check for apropriate OUT_xxx */
-		out(l, "vbr tag");
+		vbr = vbr_parse(l, p+4+MPEG_SILEN(h), n-4-MPEG_SILEN(h));
+		h_change_mask = 0xffff0dcf;
+		if (vbr->flags & VBR_TOC) {
+		    for (i=1; i<100; i++)
+			if (vbr->toc[i] <= vbr->toc[i-1]) {
+			    out(l, "vbr toc not strictly increasing");
+			    break;
+			}
+		}
 	    }
 	    else {
 		if (h_old == 0) {
-		    if (output & OUT_HEAD_1ST)
-			print_header(l, h, 0);
+		    if ((output & OUT_HEAD_1ST)
+			&& (!vbr || (output & OUT_FASTINFO_ONLY))) {
+			if (vbr) {
+			    if (vbr->flags & VBR_FRAMES|VBR_BYTES ==
+				VBR_FRAMES|VBR_BYTES)
+				bitr = (vbr->bytes)
+				    /((125*vbr->frames*MPEG_NSAMP(h))
+				      /MPEG_SAMPFREQ(h));
+			    else
+				bitr = 0;
+			}
+			else
+			    bitr = -1;
+			print_header(l, h, bitr);
+		    }
 		    if (output & OUT_FASTINFO_ONLY) {
 			h_old = h;
 			break;
@@ -322,8 +267,8 @@ process_file(FILE *f, char *fname)
 		else if (output & OUT_HEAD_CHANGE) {
 		    /* XXX: check invariants */
 		    /* ignores padding, mode ext. */
-		    if ((h_old & 0xfffffdcf) != (h & 0xfffffdcf))
-			print_header(l, h, 0);
+		    if ((h_old & h_change_mask) != (h & h_change_mask))
+			print_header(l, h, -1);
 		    /* out(l, "header change: 0x%lx -> 0x%lx", h_old, h); */
 		}
 		h_old = h; 
@@ -348,7 +293,9 @@ process_file(FILE *f, char *fname)
 		    out(l, "short frame: %d of %d bytes (%d missing)",
 			n, j, j-n);
 		}
-		
+
+		if (vbr)
+		    bitr += MPEG_BITRATE(h);
 		nframes++;
 	    }
 	    l += n;
@@ -397,7 +344,7 @@ process_file(FILE *f, char *fname)
 		/* no sync */
 		if (output & OUT_HEAD_ILLEGAL)
 		    out(l, "illegal header 0x%lx (%s)", h, ulong2asc(h));
-		if (resync(&l, &h, ib, 1) < 0)
+		if (resync(&l, &h, ib, 0) < 0)
 		    break;
 		else
 		    goto resynced;
@@ -405,12 +352,25 @@ process_file(FILE *f, char *fname)
 	}
     }
 
+    if ((h_old && vbr
+	 && (output & OUT_HEAD_1ST) && !(output & OUT_FASTINFO_ONLY))) {
+	bitr /= nframes;
+	print_header(l, h_old, bitr);
+    }
+
     if (h_old && (output & OUT_PLAYTIME)) {
 	if (!(output & OUT_FASTINFO_ONLY)) {
 	    /* XXX: only works if sampfreq doesn't change during song */
-	    len = (nframes*1152)/MPEG_SAMPFREQ(h_old);
+	    len = (nframes*MPEG_NSAMP(h))/MPEG_SAMPFREQ(h_old);
 	    out(l, "play time: %02d:%02d:%02d (%ld frames)",
 		len/3600, (len/60)%60, len%60, nframes);
+	}
+	else if (vbr) {
+	    if (vbr->flags & VBR_FRAMES) {
+		len = (vbr->frames*MPEG_NSAMP(h))/MPEG_SAMPFREQ(h_old);
+		out(l, "play time: %02d:%02d:%02d (according to vbr tag)",
+		    len/3600, (len/60)%60, len%60);
+	    }
 	}
 	else if (len != -1) {
 	    len -= l;
@@ -736,14 +696,14 @@ print_header(long pos, unsigned long h, int vbrkbps)
 	"stereo", "j-stereo", "dual-ch", "mono"
     };
     static char *emph[] = {
-	"no emphasis", "50/15 micro seconds", "", "CCITT J.17"
+	"no emphasis", "50/15 micro seconds", "reserved", "CCITT J.17"
     };
 
     out(pos, "MPEG %d layer %d%s, %dkbps%s, %dkHz, %s%s%s%s%s%s",
 	MPEG_VERSION(h), MPEG_LAYER(h),
 	MPEG_CRC(h) ? ", crc" : "",
-	(vbrkbps ? vbrkbps : MPEG_BITRATE(h)),
-	(vbrkbps ? " vbr" : ""),
+	(vbrkbps == -1 ? MPEG_BITRATE(h) : vbrkbps),
+	(vbrkbps == -1 ? "" : " vbr"),
 	MPEG_SAMPFREQ(h)/1000,
 	MPEG_PRIV(h)? "priv, " : "",
 	mode[MPEG_MODE(h)],
@@ -852,7 +812,7 @@ get_sideinfo(struct sideinfo *si, unsigned long h, unsigned char *b, int blen)
 #define MIN_CONSEC 6
 
 int
-resync(long *lp, unsigned long *hp, struct inbuf *ib, int doout)
+resync(long *lp, unsigned long *hp, struct inbuf *ib, int inframe)
 {
     unsigned long h;
     long l, try, l2;
@@ -870,8 +830,11 @@ resync(long *lp, unsigned long *hp, struct inbuf *ib, int doout)
 		l2 = l+try;
 		for (i=0; i<MIN_CONSEC; i++) {
 		    l2 += MPEG_FRLEN(h);
-		    if (inbuf_getlong(&h, l2, ib) < 0)
+		    if (inbuf_getlong(&h, l2, ib) < 0) {
+			if (inframe)
+			    valid = 0;
 			break;
+		    }
 		    if (!IS_VALID(h)) {
 			valid = 0;
 			break;
@@ -884,7 +847,7 @@ resync(long *lp, unsigned long *hp, struct inbuf *ib, int doout)
 		if (!valid)
 		    continue;
 	    }
-	    if (doout && (output & OUT_RESYNC_SKIP))
+	    if (!inframe && (output & OUT_RESYNC_SKIP))
 		out(l, "skipping %d bytes", try);
 	    *hp = h;
 	    *lp = l+try;
@@ -893,10 +856,10 @@ resync(long *lp, unsigned long *hp, struct inbuf *ib, int doout)
     }
 
     if (c < 0) {
-	if (doout && (output & OUT_RESYNC_SKIP))
+	if (!inframe && (output & OUT_RESYNC_SKIP))
 	    out(l, "skipping %d bytes, reaching EOF", try);
     }
-    else if (doout && (output & OUT_RESYNC_BAILOUT))
+    else if (!inframe && (output & OUT_RESYNC_BAILOUT))
 	out(l, "no sync found in 64k, bailing out");
     return -1;
 }
