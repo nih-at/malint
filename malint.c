@@ -22,10 +22,12 @@
 
 
 
+#include <ctype.h>
 #include <errno.h>
 #include <getopt.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "config.h"
@@ -109,24 +111,20 @@ int min_consec;		/* number of consecutive headers to accept a resync */
 
 
 
-int process_file(FILE *f, char *fname);
-int resync(long *lp, unsigned long *hp, struct inbuf *ib,
-	   int inframe, int maxtry);
-
 int check_l1(long pos, unsigned long h, unsigned char *b, int blen, int flen);
 int check_l3(long pos, unsigned long h, unsigned char *b, int blen,
 	     int flen, int *bitresp, int taginbitres);
 int get_l1_bit_alloc(int *balloc, unsigned long h,
 			 unsigned char *b, int blen);
-static void warn_short_frame(long l, int dlen, int flen, int blen, int eof);
-
-
-void out_start(char *fname);
-void out(long pos, char *fmt, ...);
-
+int get_sideinfo(struct sideinfo *si, unsigned long h,
+		 unsigned char *b, int blen);
 char *mem2asc(char *mem, int len);
-char *ulong2asc(unsigned long);
 void print_header(long pos, unsigned long h, int vbrkbps);
+int process_file(FILE *f, char *fname);
+int resync(long *lp, unsigned long *hp, struct inbuf *ib,
+	   int inframe, int maxtry);
+static void warn_short_frame(long l, int dlen, int flen, int blen, int eof);
+char *ulong2asc(unsigned long);
 
 
 
@@ -245,7 +243,7 @@ process_file(FILE *f, char *fname)
     struct inbuf *ib;
     int endtag_found;
     int dlen, flen, n, crc_f, crc_c, i;
-    int taginbitres, bitres, frlen, frback, eof;
+    int taginbitres, bitres, eof;
     long l, lresync, len, nframes, bitr;
     unsigned long h, h_old, h_next, h_change_mask;
     unsigned char b[130], *p;
@@ -319,8 +317,8 @@ process_file(FILE *f, char *fname)
 		    if ((output & OUT_HEAD_1ST)
 			&& (!vbr || (output & OUT_FASTINFO_ONLY))) {
 			if (vbr) {
-			    if (vbr->flags & VBR_FRAMES|VBR_BYTES ==
-				VBR_FRAMES|VBR_BYTES)
+			    if ((vbr->flags & (VBR_FRAMES|VBR_BYTES)) ==
+				(VBR_FRAMES|VBR_BYTES))
 				bitr = (vbr->bytes)
 				    /((125*vbr->frames*MPEG_NSAMP(h))
 				      /MPEG_SAMPFREQ(h));
@@ -601,7 +599,6 @@ check_l3(long pos, unsigned long h, unsigned char *b, int blen,
 {
     struct sideinfo si;
 
-    unsigned char *sip;
     int hlen, back, dlen, this_len, next_bitres, max_back;
 
     hlen = 4 + MPEG_CRC(h)*2 + MPEG_SILEN(h);
@@ -688,7 +685,7 @@ resync(long *lp, unsigned long *hp, struct inbuf *ib, int inframe, int maxtry)
 {
     unsigned long h, h_next;
     long l, try, l2;
-    int c, j, i, valid;
+    int c, i, valid;
 
     l = *lp;
     h = *hp;
@@ -763,7 +760,7 @@ int
 check_l1(long pos, unsigned long h, unsigned char *b, int blen, int flen)
 {
     int balloc[2*MPEG_SBLIMIT];
-    int nballoc, i, nsf, samlen, sf2, j;
+    int nballoc, i, nsf, samlen, sf2;
 
     nballoc = get_l1_bit_alloc(balloc, h, b, blen);
 

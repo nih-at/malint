@@ -94,6 +94,11 @@ extern int output;
 
 
 
+/* malint */
+
+void out_start(char *fname);
+void out(long pos, char *fmt, ...);
+
 /* crc */
 void crc_init(void);
 int crc_frame(unsigned long h, unsigned char *data, int len);
