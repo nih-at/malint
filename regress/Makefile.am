@@ -9,7 +9,7 @@ EXTRA_DIST=runtest ${TESTCASES} \
 TESTCASES=frame-l3crc.test frame-long.test frame-short.test \
 	id3v1-end.test id3v1-noseek.test id3v1-short.test
 
-check:
+check: ../malint
 	@failed=0; all=0; \
 	srcdir=$(srcdir); export srcdir; \
 	for tst in ${TESTCASES}; do \
