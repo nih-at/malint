@@ -80,7 +80,7 @@ static char usage[] = "usage: %s [-hV] [-IEcCpPgGdD] [FILE ...]\n";
 static char help_tail[] = "\n\
   -h, --help               display this help message\n\
   -V, --version            display version number\n\
-  -I, --info-only          display tag and first frame header only\n\
+  -I, --fast-info          display only info, do not parse whole file\n\
   -E, --error              display only error diagnostics\n\
   -c, --crc                check CRC (layer 3 only)\n\
   -C, --no-crc             do not check CRC\n\
@@ -130,7 +130,7 @@ int output;
 #define OUT_TAG_SHORT		0x2000
 #define OUT_PLAYTIME		0x8000
 #define OUT_HEAD_1ST		0x0004
-#define OUT_HEAD_1STONLY	0x4000
+#define OUT_FASTINFO_ONLY	0x4000
 #define OUT_HEAD_CHANGE		0x0008
 #define OUT_HEAD_ILLEGAL	0x0010
 #define OUT_RESYNC_SKIP		0x0020
@@ -178,13 +178,14 @@ main(int argc, char **argv)
     build_length_table(table);
     crc_init();
 
-    output = 0xffff & ~OUT_HEAD_1STONLY;
+    output = 0xffff & ~OUT_FASTINFO_ONLY;
 
     opterr = 0;
     while ((c=getopt_long(argc, argv, OPTIONS, options, 0)) != EOF) {
 	switch (c) {
 	case 'I':
-	    output = OUT_HEAD_1STONLY|OUT_TAG|OUT_TAG_CONTENTS|OUT_HEAD_1ST;
+	    output = (OUT_FASTINFO_ONLY|OUT_TAG|OUT_TAG_CONTENTS|OUT_HEAD_1ST
+		      |OUT_PLAYTIME);
 	    break;
 	case 'E':
 	    output = OUT_M_ERROR;
@@ -209,7 +210,6 @@ main(int argc, char **argv)
 	    break;
 	case 'd':
 	    output |= OUT_PLAYTIME;
-	    output &= ~OUT_HEAD_1STONLY;
 	    break;
 	case 'D':
 	    output &= ~OUT_PLAYTIME;
@@ -365,8 +365,10 @@ process_file(FILE *f, char *fname)
 	if (h_old == 0) {
 	    if (output & OUT_HEAD_1ST)
 		print_header(l, h);
-	    if (output & OUT_HEAD_1STONLY)
+	    if (output & OUT_FASTINFO_ONLY) {
+		h_old = h;
 		break;
+	    }
 	}
 	else if (output & OUT_HEAD_CHANGE) {
 	    /* XXX: check invariants */
@@ -403,11 +405,19 @@ process_file(FILE *f, char *fname)
 	l += n;
     }
 
-    if (output & OUT_PLAYTIME) {
-	/* XXX: only works if sampfreq doesn't change during song */
-	len = (nframes*1152)/MPEG_SAMPFREQ(h_old);
-	out(l, "play time: %02d:%02d:%02d (%ld frames)",
-	    len/3600, (len/60)%60, len%60, nframes);
+    if (h_old && (output & OUT_PLAYTIME)) {
+	if (!(output & OUT_FASTINFO_ONLY)) {
+	    /* XXX: only works if sampfreq doesn't change during song */
+	    len = (nframes*1152)/MPEG_SAMPFREQ(h_old);
+	    out(l, "play time: %02d:%02d:%02d (%ld frames)",
+		len/3600, (len/60)%60, len%60, nframes);
+	}
+	else if (len != -1) {
+	    len -= l;
+	    len /= 125*MPEG_BITRATE(h_old);
+	    out(l, "play time: %02d:%02d:%02d (aproximately)",
+		len/3600, (len/60)%60, len%60);
+	}
     }	    
 
     if (ferror(f)) {
