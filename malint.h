@@ -45,7 +45,7 @@ extern int output;
 
 /* check functions */
 
-#define IS_SYNC(h)	(((h)&0xfff00000) == 0xfff00000)
+#define IS_SYNC(h)	(((h)&0xffe00000) == 0xffe00000)
 #define IS_MPEG(h)	(IS_SYNC(h) && MPEG_FRLEN(h) \
 			 && MPEG_EMPH(h) != MPEG_EMPH_RESERVED)
 #define IS_ID3v1(h)	(((h)&0xffffff00) == (('T'<<24)|('A'<<16)|('G'<<8)))

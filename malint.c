@@ -35,8 +35,6 @@
 #include "mpeg.h"
 #include "vbr.h"
 
-void build_length_table(int *table);
-
 
 
 static char version_out[] = "MPEG Audio lint (" PACKAGE ") " VERSION "\n\
@@ -87,8 +85,6 @@ Report bugs to <dillo@giga.or.at>.\n";
 
 
 
-int table[2048];
-
 char *prg;
 int output;
 
@@ -126,7 +122,7 @@ main(int argc, char **argv)
 
     prg = argv[0];
 
-    build_length_table(table);
+    build_length_table();
     crc_init();
 
     output = 0xfffffff & ~OUT_FASTINFO_ONLY;
@@ -262,7 +258,7 @@ process_file(FILE *f, char *fname)
 	    if (MPEG_LAYER(h) == 3 && IS_XING(GET_LONG(p+4+MPEG_SILEN(h)))) {
 		vbr = vbr_parse(l, p+4+MPEG_SILEN(h), n-4-MPEG_SILEN(h));
 		h_change_mask = 0xffff0dcf;
-		if (vbr->flags & VBR_TOC) {
+		if (vbr && vbr->flags & VBR_TOC) {
 		    for (i=1; i<100; i++)
 			if (vbr->toc[i] <= vbr->toc[i-1]) {
 			    out(l, "vbr toc not strictly increasing");
