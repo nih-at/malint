@@ -48,16 +48,14 @@ int _mp3_jsb_tab[3][4] = {
 
 
 
-#define PROGRAM "walk_frames"
-
-static char version_out[] = PROGRAM " (" PACKAGE ") " VERSION "\n\
+static char version_out[] = PACKAGE " " VERSION "\n\
 Copyright (C) 2000 Dieter Baron\n"
 PACKAGE " comes with ABSOLUTELY NO WARRANTY, to the extent permitted by law.\n\
 You may redistribute copies of\n"
 PACKAGE " under the terms of the GNU General Public License.\n\
 For more information about these matters, see the files named COPYING.\n";
 
-static char help_head[] = PROGRAM " (" PACKAGE ") " VERSION
+static char help_head[] = PACKAGE " " VERSION
 " by Dieter Baron <dillo@giga.or.at>\n\n";
 
 #define OPTIONS	"hVIEcCpPgGdD"
