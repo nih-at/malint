@@ -27,9 +27,9 @@ char *prg;
 void out_start(char *fname);
 void out(long pos, char *fmt, ...);
 
-void parse_tag_v2(unsigned char *data, int len);
+void parse_tag_v1(long pos, char *data);
+void parse_tag_v2(long pos, unsigned char *data, int len);
 void parse_tag_v22(unsigned char *data, int len);
-void parse_tag_v1(char *data);
 
 
 
@@ -79,8 +79,7 @@ process_file(FILE *f, char *fname)
 	if (fread(b, 128, 1, f) == 1) {
 	    if (strncmp(b, "TAG", 3) == 0) {
 		len -= 128;
-		out(len, "ID3v1");
-		parse_tag_v1(b);
+		parse_tag_v1(len, b);
 	    }
 	}
 	if (fseek(f, 0, SEEK_SET) < 0) {
@@ -106,27 +105,29 @@ process_file(FILE *f, char *fname)
 	}
 	else {
 	    if ((h&0xffffff00) == (('T'<<24)|('A'<<16)|('G'<<8))) {
-		out(l, "ID3v1 tag (in middle of song)");
 		if (fread(b+4, 124, 1, f) != 1) {
+		    out(l, "ID3v1 tag (in middle of song)");
 		    printf("    short tag\n");
 		    break;
 		}
-		parse_tag_v1(b);
+		else
+		    parse_tag_v1(l, b);
 		l += 128;
 		continue;
 	    }
 	    else if ((h&0xffffff00) == (('I'<<24)|('D'<<16)|('3'<<8))) {
-		out(l, "ID3v2.%c", h&0xff);
 		if (fread(b+4, 6, 1, f) != 1) {
+		    out(l, "ID3v2.%c", (h&0xff)+'0');
 		    printf("    short header\n");
 		    break;
 		}
 		j = GET_ID3LEN(b+6);
 		if (fread(b+10, j, 1, f) != 1) {
+		    out(l, "ID3v2.%c", (h&0xff)+'0');
 		    printf("    short tag\n");
 		    break;
 		}
-		parse_tag_v2(b, j);
+		parse_tag_v2(l, b, j);
 		l += j;
 		continue;
 	    }
@@ -171,10 +172,12 @@ static char *__tags[] = {
 };
 
 void
-parse_tag_v2(unsigned char *data, int len)
+parse_tag_v2(long pos, unsigned char *data, int len)
 {
     char *p, *end;
     int i;
+
+    out(pos, "ID3v2.%c.%c tag", data[3]+'0', data[4]+'0');
 
     if (data[5]&0x80) {
 	printf("   unsynchronization not supported\n");
@@ -264,19 +267,25 @@ print_field(char *data, int len)
     printf("%.*s\n", l, data);
 }
 
+
+
 void
-parse_tag_v1(char *data)
+parse_tag_v1(long pos, char *data)
 {
-    
+    int v11;
+
+    v11 = data[126] && data[125] == 0;
+
+    out(pos, "ID3v1%s tag", v11 ? ".1" : "");
+
     printf("   Artist:\t");
     print_field(data+33, 30);
     printf("   Title:\t");
     print_field(data+3, 30);
     printf("   Album:\t");
     print_field(data+63, 30);
-    if (data[126] && data[125] == 0) { /* v1.1 */
+    if (v11)
 	printf("   Track:\t%d\n", data[126]);
-    }
     printf("   Year:\t");
     print_field(data+93, 4);
 }
@@ -303,7 +312,7 @@ out(long pos, char *fmt, ...)
 	out_fname_done = 1;
     }
 
-    printf(" at %ld: ", pos);
+    printf(" at %8ld: ", pos);
 
     va_start(argp, fmt);
     vprintf(fmt, argp);
