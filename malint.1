@@ -45,7 +45,7 @@ Don't display duration of the stream.
 .It Fl E
 .It Fl -error
 Only display error diagnostics: ignore some warnings and don't display
-tags and duration of the stream.
+informational messages (tags and duration of the stream).
 .It Fl f
 .It Fl -header-change
 Display header field changes that occur in the stream (default).
@@ -78,14 +78,16 @@ Check for missing padding in last frame (default).
 Don't check for missing padding in last frame.
 .It Fl t
 .It Fl -tag
-Display ID3 tags.
+Display information about ID3 tags (default).
 .It Fl T
 .It Fl -no-tag
-Don't display ID3 tags.
+Don't display information about ID3 tags.
 .It Fl -tag-contents
-Display contents of ID3 tags (default).
+Display contents of ID3 tags (default).  If tags are not displayed,
+their contents aren't displayed, either.
 .It Fl -no-tag-contents
-Do not display contents of ID3 tags.
+Do not display contents of ID3 tags.  If tags are displayed, only
+their position and version is shown.
 .It Fl V
 .It Fl -version
 Display version information.
@@ -134,6 +136,11 @@ This shouldn't cause problems if it is the last frame.
 .It padding missing from [last] frame (M of P bytes)
 M of P bytes padding were found to be missing from the [last] frame.
 This shouldn't cause problems if it is the last frame.
+.\" vbr toc not strictly increasing
+.\" vbr tag with unsupported flags: XXXXXXXX
+.\" short vbr tag (M < N)
+.\" cannot parse side info
+.\" inbuf overflow after N bytes, bailing out
 .El
 .Ss Info messages
 .Bl -diag
@@ -153,6 +160,12 @@ If using fast info mode, the number of frames is not counted.  Based
 on the assumption that bit rate and sampling frequency are constant
 throughout the stream, the number of frames is approximated as
 file-length/frame-length, giving a play time of HH:MM:SS.
+.It ID3vX
+ID3 tag version X found.
+.It ID3v1 tag (in middle of file)
+ID3v1 tags should be stored in the last 128 bytes of the stream.  This
+tag was found in the middle of the stream, which might not be found by
+some players, or even cause problems (loss of sync).
 .El
 .Sh AUTHORS
 Dieter Baron <dillo@giga.or.at>
