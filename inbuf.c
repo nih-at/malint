@@ -25,6 +25,7 @@ inbuf_new(FILE *f, long length)
     inb->f = f;
     inb->cur = inb->first = inb->last = 0;
     inb->keep = -1;
+    inb->nkeep = 0;
     inb->length = length;
     inb->eof = 0;
 
@@ -120,25 +121,31 @@ inbuf_fgetc(long pos, struct inbuf *inb)
 
 
 
-#if 0
-/* is a macro now */
 int
 inbuf_keep(long pos, struct inbuf *inb)
 {
-    inb->keep = pos;
+    if (inb->nkeep >= INBUF_MAX_KEEP)
+	return -1;
+
+    inb->okeep[inb->nkeep++] = inb->keep;
+    if (pos < inb->keep)
+	inb->keep = pos;
+
+    return 0;
 }
-#endif
 
 
 
-#if 0
-/* is a macro now */
 int
 inbuf_unkeep(struct inbuf *inb)
 {
-    inb->keep = -1;
+    if (inb->nkeep == 0)
+	inb->keep = -1;
+    else
+	inb->keep = inb->okeep[--inb->nkeep];
+
+    return 0;
 }
-#endif
 
 
 
@@ -176,9 +183,7 @@ inbuf_copy(unsigned char **b, long pos, long len, struct inbuf *inb)
     if (pos < inb->first)
 	return -2;
 
-    keep = inb->keep;
-    if (inb->keep == -1 || inb->keep > pos)
-	inb->keep = pos;
+    inbuf_keep(pos, inb);
 
     if (inbuf_getc(pos+len-1, inb) < 0) {
 	len = inbuf_length(inb) - pos;
@@ -196,7 +201,7 @@ inbuf_copy(unsigned char **b, long pos, long len, struct inbuf *inb)
     }
 
     *b = inb->b + (pos%inb->bsize);
-    inb->keep = keep;
+    inb_unkeep(inb);
     return len;
 }
 
