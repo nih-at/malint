@@ -1,13 +1,19 @@
 + release
++ do not try to read directories
++ documentation
 - command line options to select checks to perform (begun)
+- WAV haeder detection
+- bitres gap: handle files that don't use bitres of more than 1 frame back
+- crc: special handling of file crc 0x0000
 - proper check for bitres use across tags (byte count instead of flag)
 - warn when using skipped data in bitres?
 - skipping 1 byte (not bytes)
 - different format for header changes (at least if !OUT_HEAD1ST)
+- id tag handling in own functions
+- check for short ID3v1 in middle of file
 - ID3v2 incremental parsing, unsynchronization support
 - split into multiple files (begun)
 - compare fast-info calculations with frame-count calculations
-- doku
 - VBR: check frames and bytes against actual values, warn about tags in middle
 - VBR: check toc against frame positions in stream
 - VBR: handle header change to vbr better

@@ -94,17 +94,6 @@ extern int output;
 
 
 
-/* statistics */
-
-enum mam_stats { s_bitr, s_sampr, s_dlen, s_back, s_bitres, s_nmam };
-
-struct stats {
-    int min[s_nmam], max[s_nmam], sum[s_nmam], num[s_nmam];
-    int fr_good, fr_bad, skip;
-};
-
-
-
 /* crc */
 void crc_init(void);
 int crc_frame(unsigned long h, unsigned char *data, int len);
