@@ -10,6 +10,7 @@
 
 void build_length_table(int *table);
 int process_file(FILE *f, char *fname);
+int resync(long *lp, unsigned long *hp, struct inbuf *ib, int doout);
 
 extern int _mp3_samp_tab[2][4];
 extern int _mp3_bit_tab[2][16][3];
@@ -258,8 +259,8 @@ process_file(FILE *f, char *fname)
     struct inbuf *ib;
     int j, n, crc_f, crc_c;
     int bitres, frlen, frback;
-    long l, len, nframes;
-    unsigned long h, h_old;
+    long l, lresync, len, nframes;
+    unsigned long h, h_old, h_next;
     unsigned char b[130], *p;
 
     out_start(fname);
@@ -292,17 +293,65 @@ process_file(FILE *f, char *fname)
     while (inbuf_getlong(&h, l, ib) >= 0) {
 
     resynced:
-	if (IS_SYNC(h)) {
-	    j = MPEG_FRLEN(h);
-	    if (j == 0) {
-		if (output & OUT_HEAD_ILLEGAL)
-		    out(l, "illegal header 0x%lx (%s)", h, ulong2asc(h));
-		if (resync(&l, &h, ib) < 0)
-		    break;
-		else
-		    goto resynced;
+	if (IS_MPEG(h)) {
+	    n = j = MPEG_FRLEN(h);
+	    inbuf_keep(l, ib);
+	    h_next = 0;
+	    inbuf_getlong(&h_next, l+j, ib);
+	    inbuf_unkeep(ib);
+	    if (!IS_VALID(h_next)) {
+		lresync = l;
+		if (resync(&lresync, &h_next, ib, 0) >= 0)
+		    n = ((lresync-l) < j ? (lresync-l) : j);
 	    }
-	    nframes++;
+	    n = inbuf_copy(&p, l, n, ib);
+
+	    if (MPEG_LAYER(h) == 3 && IS_XING(GET_LONG(p+4+MPEG_SILEN(h)))) {
+		/* XXX: check for apropriate OUT_xxx */
+		out(l, "vbr tag");
+	    }
+	    else {
+		if (h_old == 0) {
+		    if (output & OUT_HEAD_1ST)
+			print_header(l, h, 0);
+		    if (output & OUT_FASTINFO_ONLY) {
+			h_old = h;
+			break;
+		    }
+		}
+		else if (output & OUT_HEAD_CHANGE) {
+		    /* XXX: check invariants */
+		    /* ignores padding, mode ext. */
+		    if ((h_old & 0xfffffddf) != (h & 0xfffffddf))
+			print_header(l, h, 0);
+		    /* out(l, "header change: 0x%lx -> 0x%lx", h_old, h); */
+		}
+		h_old = h; 
+		
+		if ((output & OUT_CRC_ERROR) && MPEG_CRC(h)) {
+		    crc_c = crc_frame(h, p, j);
+		    crc_f = GET_SHORT(p+4);
+		    
+		    if (crc_c != -1 && crc_c != crc_f)
+			out(l, "CRC error (calc:%04x != file:%04x)",
+			    crc_c, crc_f);
+		}
+		
+		if ((output & (OUT_BITR_OVERFLOW|OUT_BITR_FRAME_OVER
+			       |OUT_BITR_GAP|OUT_LFRAME_SHORT
+			       |OUT_LFRAME_PADDING))
+		    && MPEG_LAYER(h) == 3) {
+		    check_l3bitres(l, h, p, n, j, &bitres);
+		}
+		else if (n < j && (output & OUT_LFRAME_SHORT)) {
+		    /* XXX: check for EOF */
+		    out(l, "short frame: %d of %d bytes (%d missing)",
+			n, j, j-n);
+		}
+		
+		l += n;
+		nframes++;
+	    }
 	}
 	else {
 	    if (IS_ID3v1(h)) {
@@ -348,58 +397,12 @@ process_file(FILE *f, char *fname)
 		/* no sync */
 		if (output & OUT_HEAD_ILLEGAL)
 		    out(l, "illegal header 0x%lx (%s)", h, ulong2asc(h));
-		if (resync(&l, &h, ib) < 0)
+		if (resync(&l, &h, ib, 1) < 0)
 		    break;
 		else
 		    goto resynced;
 	    }
 	}
-	if (j>4)
-	    n = inbuf_copy(&p, l, j, ib);
-
-	if (MPEG_LAYER(h) == 3 && IS_XING(GET_LONG(p+4+MPEG_SILEN(h)))) {
-	    /* XXX: check for apropriate OUT_xxx */
-	    out(l, "vbr tag");
-	}
-
-	if (h_old == 0) {
-	    if (output & OUT_HEAD_1ST)
-		print_header(l, h, 0);
-	    if (output & OUT_FASTINFO_ONLY) {
-		h_old = h;
-		break;
-	    }
-	}
-	else if (output & OUT_HEAD_CHANGE) {
-	    /* XXX: check invariants */
-	    /* ignores padding, mode ext. */
-	    if ((h_old & 0xfffffddf) != (h & 0xfffffddf))
-		print_header(l, h, 0);
-	        /* out(l, "header change: 0x%lx -> 0x%lx", h_old, h); */
-	}
-	h_old = h; 
-
-	if ((output & OUT_CRC_ERROR) && MPEG_CRC(h)) {
-	    crc_c = crc_frame(h, p, j);
-	    crc_f = GET_SHORT(p+4);
-
-	    if (crc_c != -1 && crc_c != crc_f)
-		out(l, "CRC error (calc:%04x != file:%04x)", crc_c, crc_f);
-	}
-
-	if ((output & (OUT_BITR_OVERFLOW|OUT_BITR_FRAME_OVER
-		       |OUT_BITR_GAP|OUT_LFRAME_SHORT
-		       |OUT_LFRAME_PADDING))
-	    && MPEG_LAYER(h) == 3) {
-	    check_l3bitres(l, h, p, n, j, &bitres);
-	}
-	else if (n < j && (output & OUT_LFRAME_SHORT)) {
-	    out(l, "short last frame: %d of %d bytes (%d missing)",
-		n, j, j-n);
-	    break;
-	}
-
-	l += n;
     }
 
     if (h_old && (output & OUT_PLAYTIME)) {
@@ -849,7 +852,7 @@ get_sideinfo(struct sideinfo *si, unsigned long h, unsigned char *b, int blen)
 #define MIN_CONSEC 6
 
 int
-resync(long *lp, unsigned long *hp, struct inbuf *ib)
+resync(long *lp, unsigned long *hp, struct inbuf *ib, int doout)
 {
     unsigned long h;
     long l, try, l2;
@@ -881,7 +884,7 @@ resync(long *lp, unsigned long *hp, struct inbuf *ib)
 		if (!valid)
 		    continue;
 	    }
-	    if (output & OUT_RESYNC_SKIP)
+	    if (doout && (output & OUT_RESYNC_SKIP))
 		out(l, "skipping %d bytes", try);
 	    *hp = h;
 	    *lp = l+try;
@@ -890,10 +893,10 @@ resync(long *lp, unsigned long *hp, struct inbuf *ib)
     }
 
     if (c < 0) {
-	if (output & OUT_RESYNC_SKIP)
+	if (doout && (output & OUT_RESYNC_SKIP))
 	    out(l, "skipping %d bytes, reaching EOF", try);
     }
-    else if (output & OUT_RESYNC_BAILOUT)
+    else if (doout && (output & OUT_RESYNC_BAILOUT))
 	out(l, "no sync found in 64k, bailing out");
     return -1;
 }
