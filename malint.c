@@ -625,7 +625,8 @@ mem2asc(char *mem, int len)
 	len = 1024;
 
     for (i=0; i<len; i++)
-	if (isprint(mem[i]))
+	/* XXX: NetBSD's isprint returns true for extended control chars */
+	if (isprint(mem[i]) && isascii(mem[i]))
 	    asc[i] = mem[i];
 	else
 	    asc[i] = '.';
