@@ -4,8 +4,6 @@
 + split into multiple files, copyright notices
 + command line options to select checks to perform (begun)
 + skipping 1 byte (not bytes)
-+ check for frame header in erroneous frame (skip backwards)
-+ check for next frame header before processing frame
 + better handling of bit reservoir when skipping (and with tags in middle)
 + different format for header changes (at least if !OUT_HEAD1ST)
 - doku
