@@ -42,6 +42,36 @@ static int field_len(char *data, int len, int dlen);
 
 
 
+long
+check_tag_v2(struct inbuf *ib, long l, unsigned long h)
+{
+    /* inbuf_keep(l, ib); */
+    if (inbuf_getc(l+10, ib) < 0) {
+	if (output & OUT_TAG_SHORT) {
+	    out(l, "ID3v2.%c", (h&0xff)+'0');
+	    printf("    short header\n");
+	}
+	/* XXX: return value for resync? */
+	return -1;
+    }
+    inbuf_getlong(&h_next, l+6, ib);
+    inbuf_unkeep(ib);
+    n = LONG_TO_ID3LEN(h_next) + 10;
+    if (inbuf_copy(&p, l, n, ib) != n) {
+	if (output & OUT_TAG_SHORT) {
+	    out(l, "ID3v2.%c.%c", (h&0xff)+'0', (h_next>>24)+'0');
+	    printf("    short tag\n");
+	}
+	break;
+    }
+    if (output & OUT_M_TAG)
+	parse_tag_v2(l, p, n);
+    l += n;
+    continue;
+}
+
+
+
 void
 parse_tag_v2(long pos, unsigned char *data, int len)
 {

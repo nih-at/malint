@@ -401,27 +401,9 @@ process_file(FILE *f, char *fname)
 	}
 	else if (IS_ID3v2(h)) {
 	    taginbitres = 1;
-	    inbuf_keep(l, ib);
-	    if (inbuf_getc(l+10, ib) < 0) {
-		if (output & OUT_TAG_SHORT) {
-		    out(l, "ID3v2.%c", (h&0xff)+'0');
-		    printf("    short header\n");
-		}
-		break;
-	    }
-	    inbuf_getlong(&h_next, l+6, ib);
-	    inbuf_unkeep(ib);
-	    n = LONG_TO_ID3LEN(h_next) + 10;
-	    if (inbuf_copy(&p, l, n, ib) != n) {
-		if (output & OUT_TAG_SHORT) {
-		    out(l, "ID3v2.%c.%c", (h&0xff)+'0', (h_next>>24)+'0');
-		    printf("    short tag\n");
-		}
-		break;
-	    }
-	    if (output & OUT_M_TAG)
-		parse_tag_v2(l, p, n);
-	    l += n;
+	    /* XXX: where to begin resyncing? */
+	    /* inbuf_keep(l, ib); */
+	    l += check_tag_v2(l, h);
 	    continue;
 	}
 	else {
