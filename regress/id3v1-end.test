@@ -1,3 +1,4 @@
 title ID3v1 tag at end of file
 return 0
-args -D id3v1-end.in
+flags -D
+input id3v1-end.in

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-#  $NiH: runtest,v 1.1 2002/04/19 13:57:11 dillo Exp $
+#  $NiH: runtest,v 1.2 2002/04/19 14:20:46 dillo Exp $
 #
 #  runtest -- run regression tests
 #  Copyright (C) 2002 Dieter Baron
@@ -28,15 +28,17 @@
 #   TESTNAME.test: test scenario
 #   TESTNAME.log: expected malint output
 #
-# test scenario files contain the following lines in that order:
+# test scenario files contain the following lines:
 #   title TEST DESCRIPTION
-#	description of this test
+#	description of test case. [required]
 #   return RET
-#	where RET is the expected return code from malint.
-#   precmd COMMAND
-#	output of COMMAND will be piped into malint [optional]
-#   args ARGUMENTS
-#	where ARGUMENTS are the options and arguments to invoke malint with.
+#	where RET is the expected return code from malint. [required]
+#   cat FILES
+#	files to feed malint on stdin. [optional]
+#   flags FLAGS
+#	flags to invoke malint with. [optional]
+#   input FILES
+#       input files to run malint on. [optional]
 # 
 # environment variables:
 #   VERBOSE: if set, be more verbose (e. g., output diffs)
@@ -71,38 +73,32 @@ cleanup() {
 }
 
 checkfile() {
-	if [ ! -f "$2" ]
+    if [ ! -f "$2" ]
+    then
+	fail "missing output file: '$2'"
+    else
+	sed -e '/^stdin:/n' -e 's-^\([^ ]*\):-'"${srcdir}"'/\1:-' "$1" \
+		| diff - "$2" > /dev/null
+	if [ $? -ne 0 ]
 	then
-		fail "missing output file: '$2'"
-	else
-		diff "$1" "$2" > /dev/null
-		if [ $? -ne 0 ]
-		then
-			if [ ! -z "${VERBOSE}" ]
-			then
-				diff -u "$1" "$2"
-			fi
-			fail "$3"
-		fi
+	    if [ ! -z "${VERBOSE}" ]
+	    then
+		sed -e '/^stdin:/n' -e 's-^\([^ ]*\):-'"${srcdir}"'/\1:-' "$1"\
+		    | diff -u - "$2"
+	    fi
+	    fail "$3"
 	fi
+    fi
 }
 
-check_in() {
-	if [ ! "$1" = "$2" ]
-	then
-		die "unexpected directive in test file: got '$1', expeced '$2'"
-	fi
-}
-
-
-TEST=`echo $1 | sed 's/\.test$//'`
-shift
-
-LOG=${TEST}.$$
 if [ -z "${srcdir}" ]
 then
     srcdir=.
 fi
+
+TEST=`echo $1 | sed 's/\.test$//'`
+shift
+LOG=${TEST}.$$
 
 if [ -z "${MALINT}" ]
 then
@@ -113,19 +109,35 @@ fi
 
 {
 
-read c TITLE
-check_in $c title
+while read c a
+do
+    case "$c"
+    in
+	title) TITLE="$a";;
+	return) RET="$a";;
+	cat) CATFILES="$a";;
+	flags) FLAGS="$a";;
+	input) INPUT="$a";;
+	*) die "unknown directive in test file: $c"
+    esac
+done
 
-read c RET
-check_in $c return
+# XXX: check for missing title/return
 
-read c ARGS
-if [ "$c" = "precmd" ]
+ARGS="${FLAGS}"
+for f in ${INPUT}
+do
+    ARGS="${ARGS} ${srcdir}/$f"
+done
+
+if [ ! -z "${CATFILES}" ]
 then
-    PRECMD="${ARGS}"
-    read c ARGS
+    PRECMD="cat"
+    for f in ${CATFILES}
+    do
+	PRECMD="${PRECMD} ${srcdir}/$f"
+    done
 fi
-check_in $c args
 
 if [ ! -z "${VERBOSE}" ]
 then

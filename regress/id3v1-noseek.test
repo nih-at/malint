@@ -1,4 +1,4 @@
 title ID3v1 tag at end of non-seekable file
 return 0
-precmd cat id3v1-end.in
-args -D
+cat id3v1-end.in
+flags -D

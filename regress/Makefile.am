@@ -3,6 +3,7 @@ EXTRA_DIST=runtest ${TESTCASES} \
 	frame-long.in frame-long.log \
 	frame-short.in frame-short.log \
 	id3v1-short.in id3v1-short.log \
+	id3v1-noseek.log \
 	id3v1-end.in id3v1-end.log
 
 TESTCASES=frame-l3crc.test frame-long.test frame-short.test \
