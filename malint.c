@@ -521,6 +521,9 @@ ulong2asc(unsigned long l)
 void
 print_header(long pos, unsigned long h, int vbrkbps)
 {
+    static char *version[] = {
+	"reserved", "1", "2", "reserved", "2.5"
+    };
     static char *mode[] = {
 	"stereo", "j-stereo", "dual-ch", "mono"
     };
@@ -528,8 +531,8 @@ print_header(long pos, unsigned long h, int vbrkbps)
 	"no emphasis", "50/15 micro seconds", "reserved", "CCITT J.17"
     };
 
-    out(pos, "MPEG %d layer %d%s, %dkbps%s, %dkHz, %s%s%s%s%s%s",
-	MPEG_VERSION(h), MPEG_LAYER(h),
+    out(pos, "MPEG %s layer %d%s, %dkbps%s, %dkHz, %s%s%s%s%s%s",
+	version[MPEG_VERSION(h)], MPEG_LAYER(h),
 	MPEG_CRC(h) ? ", crc" : "",
 	(vbrkbps == -1 ? MPEG_BITRATE(h) : vbrkbps),
 	(vbrkbps == -1 ? "" : " vbr"),
