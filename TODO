@@ -1,5 +1,5 @@
 + release
-+ add copyright comments
++ add copyright comments to mpg123.[ch]
 + configure: test for uncommon functions, add replacements (vasprint, asprintf)
 + split into multiple files, copyright notices
 + command line options to select checks to perform (begun)
