@@ -1,0 +1,3 @@
+title 12 bytes garbage after frame
+return 0
+args -G long-frame.in

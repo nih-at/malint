@@ -1,7 +1,10 @@
 EXTRA_DIST=runtest ${TESTCASES} \
-	id3v1-short.in id3v1-end.in
+	frame-long.in frame-long.log \
+	id3v1-short.in id3v1-short.log \
+	id3v1-end.in id3v1-end.log
 
-TESTCASES=id3v1-end.test id3v1-noseek.test id3v1-short.test
+TESTCASES=frame-long.test \
+	id3v1-end.test id3v1-noseek.test id3v1-short.test
 
 check:
 	@failed=0; all=0; \
