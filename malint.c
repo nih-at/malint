@@ -9,7 +9,15 @@ int process_file(FILE *f, char *fname);
 #define MPEG_VERSION(h)	(2-(((h)&0x00080000)>>19))
 #define MPEG_LAYER(h)	(4-(((h)&0x00060000)>>17))
 #define MPEG_CRC(h)	(!((h)&0x00010000))
+#define MPEG_BITRATE(h)	(((h)&0x0000f000)>>12)
+#define MPEG_SAMPFREQ(h) (((h)&0x00000c00)>>10)
+#define MPEG_PADDING(h)	(((h)&0x00000200)>>9)
+#define MPEG_PRIV(h)	(((h)&0x00000100)>>8)
 #define MPEG_MODE(h)	(((h)&0x000000c0)>>6)
+#define MPEG_MODEEXT(h)	(((h)&0x00000030)>>4)
+#define MPEG_COPY(h)	(!((h)&0x00000008))
+#define MPEG_ORIG(h)	(!((h)&0x00000004))
+#define MPEG_EMPH(h)	((h)&0x00000003)
 
 #define MPEG_MODE_SINGLE	0x3
 
@@ -38,6 +46,9 @@ static int crc_frame(unsigned long h, unsigned char *data, int len);
 
 void out_start(char *fname);
 void out(long pos, char *fmt, ...);
+
+char *mem2asc(char *mem, int len);
+void print_header(long pos, unsigned long h);
 
 void parse_tag_v1(long pos, char *data);
 void parse_tag_v2(long pos, unsigned char *data, int len);
@@ -82,7 +93,7 @@ process_file(FILE *f, char *fname)
 {
     int j, n, crc_f, crc_c;
     long l, len;
-    unsigned long h;
+    unsigned long h, h_old;
     unsigned char b[8192];
 
     out_start(fname);
@@ -105,6 +116,7 @@ process_file(FILE *f, char *fname)
 	len = -1;
 
     l = 0;
+    h_old = 0;
     while((len < 0 || l < len-3) && fread(b, 4, 1, f) > 0) {
 	h = GET_LONG(b);
 	
@@ -112,7 +124,7 @@ process_file(FILE *f, char *fname)
 	    /* valid header */
 	    j = table[(h&0x000fffe0)>>9];
 	    if (j == 0) {
-		out(l, "illegal header 0x%lx", h);
+		out(l, "illegal header 0x%lx (%s)", h, mem2asc(b, 4));
 		break;
 	    }
 	}
@@ -146,7 +158,7 @@ process_file(FILE *f, char *fname)
 	    }
 	    else {
 		/* not recognized */
-		out(l, "illegal header 0x%lx", h);
+		out(l, "illegal header 0x%lx (%s)", h, mem2asc(b, 4));
 		/* resync? */
 		break;
 	    }
@@ -161,11 +173,15 @@ process_file(FILE *f, char *fname)
 	    }
 	}
 	/* read complete frame */
+
+	if (h_old == 0)
+	    print_header(l, h);
+	else {
+	    /* XXX: check invariants */
+	}
+	h_old = h; 
+
 	if (MPEG_CRC(h)) {
-	    b[0] = (h>>24) & 0xff;
-	    b[1] = (h>>16) & 0xff;
-	    b[2] = (h>>8) & 0xff;
-	    b[3] = (h) & 0xff;
 	    crc_c = crc_frame(h, b, j);
 	    crc_f = GET_SHORT(b+4);
 
@@ -409,4 +425,49 @@ crc_frame(unsigned long h, unsigned char *data, int len)
 	crc_update(&crc, data[i+6]);
     
     return crc;
+}
+
+
+
+char *
+mem2asc(char *mem, int len)
+{
+    static char asc[1025];
+
+    int i;
+
+    if (len > 1024)
+	len = 1024;
+
+    for (i=0; i<len; i++)
+	if (isprint(mem[i]))
+	    asc[i] = mem[i];
+	else
+	    asc[i] = '.';
+
+    asc[len] = '\0';
+
+    return asc;
+}
+
+
+
+void
+print_header(long pos, unsigned long h)
+{
+    static char *mode[] = {
+	"stereo", "joint stereo", "dual channel", "single channel"
+    };
+    static char *emph[] = {
+	"no emphasis", "50/15 micro seconds", "", "CCITT J.17"
+    };
+
+    out(pos, "MPEG %d layer %d%s, %dbps, %dkHz, %s%s%s, %s", /*", */
+	MPEG_VERSION(h), MPEG_LAYER(h),
+	MPEG_CRC(h) ? ", crc" : "",
+	MPEG_BITRATE(h), MPEG_SAMPFREQ(h),
+	mode[MPEG_MODE(h)],
+	MPEG_COPY(h) ? ", copyright" : "",
+	MPEG_ORIG(h) ? ", original" : "",
+	emph[MPEG_EMPH(h)]);
 }
