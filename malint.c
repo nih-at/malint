@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "mpg123.h"
+
 void build_length_table(int *table);
 int process_file(FILE *f, char *fname);
 
@@ -25,7 +27,12 @@ extern int _mp3_bit_tab[2][16][3];
 #define MPEG_ORIG(h)	(!((h)&0x00000004))
 #define MPEG_EMPH(h)	((h)&0x00000003)
 
+#define MPEG_MODE_STEREO	0x0
+#define MPEG_MODE_JSTEREO	0x1
+#define MPEG_MODE_DUAL		0x2
 #define MPEG_MODE_SINGLE	0x3
+
+
 
 
 
@@ -49,6 +56,8 @@ char *prg;
 static void crc_init(void);
 static void crc_update(int *crc, unsigned char b);
 static int crc_frame(unsigned long h, unsigned char *data, int len);
+void check_l3bitres(long pos, unsigned long h, unsigned char *b, int blen,
+		    int flen, int *bitresp);
 
 void out_start(char *fname);
 void out(long pos, char *fmt, ...);
@@ -98,6 +107,7 @@ int
 process_file(FILE *f, char *fname)
 {
     int j, n, crc_f, crc_c;
+    int bitres, frlen, frback;
     long l, len;
     unsigned long h, h_old;
     unsigned char b[8192];
@@ -121,6 +131,7 @@ process_file(FILE *f, char *fname)
     else
 	len = -1;
 
+    bitres = 0;
     l = 0;
     h_old = 0;
     while((len < 0 || l < len-3) && fread(b, 4, 1, f) > 0) {
@@ -199,12 +210,14 @@ process_file(FILE *f, char *fname)
 	    if (crc_c != -1 && crc_c != crc_f)
 		out(l, "CRC error (calc:%04x != file:%04x)", crc_c, crc_f);
 	}
-	l += j;
 
 #if 0
-	n = GET_SHORT(b+4+MPEG_CRC(h)*2)>>7;
-	printf(">>%d\n", n);
+	if (MPEG_LAYER(h) == 3) {
+	    check_l3bitres(l, h, b, j, j, &bitres);
+	}
 #endif
+
+	l += j;
     }
 
     if (ferror(f)) {
@@ -499,3 +512,92 @@ print_header(long pos, unsigned long h)
 	MPEG_EMPH(h) ? ", " : "",
 	MPEG_EMPH(h) ? emph[MPEG_EMPH(h)] : "");
 }
+
+
+
+void
+check_l3bitres(long pos, unsigned long h, unsigned char *b, int blen,
+	       int flen, int *bitresp)
+{
+    struct sideinfo si;
+
+    unsigned char *sip;
+    int hlen, back, dlen;
+
+    hlen = (4 + MPEG_CRC(h)*2
+	    + (MPEG_VERSION(h)==2 ? (MPEG_MODE(h) == MPEG_MODE_SINGLE ? 9 : 17)
+	       : (MPEG_MODE(h) == MPEG_MODE_SINGLE ? 17 : 32)));
+
+    if (get_sideinfo(&si, h, b, blen) < 0) {
+	out(pos, "cannot parse sideinfo");
+	return;
+    }
+	
+    back = si.main_data_begin;
+    dlen = get_frame_data_len(h, &si);
+    
+    if (back > *bitresp)
+	out(pos, "main_data_begin overflows bit reservoir (%d > %d)",
+	    back, *bitresp);
+    
+    if (dlen-back > flen-hlen)
+	out(pos, "frame data overflows frame (%d > %d)",
+	    dlen-back, flen-hlen);
+
+    if (back != 511 && back != 0 && back < *bitresp
+	&& flen-hlen-dlen+back < 511)
+	out(pos, "gap in bit stream (%d < %d)", back, *bitresp);
+
+    out(pos, "debug: bitres=%d, back=%d, dlen=%d\n", *bitresp, back, dlen);
+
+    *bitresp = flen-hlen-dlen+back;
+    if (*bitresp > 511)
+	*bitresp = 511;
+}
+
+
+
+int 
+get_sideinfo(struct sideinfo *si, unsigned long h, unsigned char *b, int blen)
+{
+    int ms_stereo, stereo, sfreq;
+
+    wordpointer = b + 4 + MPEG_CRC(h)*2;
+    bitindex = 0;
+
+    if (MPEG_MODE(h) == MPEG_MODE_JSTEREO)
+	ms_stereo = MPEG_MODEEXT(h) & 0x2;
+    else
+	ms_stereo = 0;
+    stereo = (MPEG_MODE(h) == MPEG_MODE_SINGLE ? 1 : 2);
+
+    if (MPEG_VERSION(h) == 2)
+	return III_get_side_info_2(si, stereo, ms_stereo, sfreq, 0);
+    else 
+	return III_get_side_info_1(si, stereo, ms_stereo, sfreq, 0);
+}
+
+
+
+int
+get_frame_data_len(unsigned long h, struct sideinfo *si)
+{
+    int i, j, granules, n, stereo;
+
+    stereo = (MPEG_MODE(h) == MPEG_MODE_SINGLE ? 1 : 2);
+    granules = (MPEG_VERSION(h) == 2 ? 1 : 2);
+
+    n = 0;
+    for (i=0; i<granules; i++) {
+	for (j=0; j<stereo; j++) {
+	    if (MPEG_VERSION(h) == 2)
+		n += III_get_scale_factors_2(NULL, &(si->ch[j].gr[i]),
+					     0);
+	else
+	    n += III_get_scale_factors_1(NULL, &(si->ch[j].gr[i]));
+	}
+    }
+
+    return (n+7)/8;
+}
+    
