@@ -614,10 +614,10 @@ get_sideinfo(struct sideinfo *si, unsigned long h, unsigned char *b, int blen)
 	ms_stereo = 0;
     stereo = (MPEG_MODE(h) == MPEG_MODE_SINGLE ? 1 : 2);
 
-    if (MPEG_VERSION(h) == 2)
-	return III_get_side_info_2(si, stereo, ms_stereo, sfreq, 0);
-    else 
+    if (MPEG_VERSION(h) == 1)
 	return III_get_side_info_1(si, stereo, ms_stereo, sfreq, 0);
+    else 
+	return III_get_side_info_2(si, stereo, ms_stereo, sfreq, 0);
 }
     
 
