@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -22,6 +23,9 @@ char *prg;
 #define GET_INT3(x)	(((x)[0]<<16)|((x)[1]<<8)|(x)[2])
 #define GET_ID3LEN(x)	((((x)[0]&0x7f)<<21)|(((x)[1]&0x7f)<<14) \
 			 |(((x)[2]&0x7f)<<7)|((x)[3]&0x7f))
+
+void out_start(char *fname);
+void out(long pos, char *fmt, ...);
 
 void parse_tag_v2(unsigned char *data, int len);
 void parse_tag_v22(unsigned char *data, int len);
@@ -67,14 +71,15 @@ process_file(FILE *f, char *fname)
     long l, len;
     unsigned long h;
     unsigned char b[8192];
-    char *data;
+
+    out_start(fname);
 
     if (fseek(f, -128, SEEK_END) >= 0) {
 	len = ftell(f);
 	if (fread(b, 128, 1, f) == 1) {
 	    if (strncmp(b, "TAG", 3) == 0) {
 		len -= 128;
-		printf("%s: ID3v1 tag at %ld\n", fname, l);
+		out(len, "ID3v1");
 		parse_tag_v1(b);
 	    }
 	}
@@ -93,29 +98,25 @@ process_file(FILE *f, char *fname)
 	
 	if ((h&0xfff00000) == 0xfff00000) {
 	    /* valid header */
-	    data = "last frame";
 	    j = table[(h&0x000fffe0)>>9];
 	    if (j == 0) {
-		printf("%s: illegal header at %ld: 0x%lx\n",
-		       fname, l, h);
+		out(l, "illegal header 0x%lx", h);
 		break;
 	    }
 	}
 	else {
 	    if ((h&0xffffff00) == (('T'<<24)|('A'<<16)|('G'<<8))) {
-		printf("%s: ID3v1 tag at %ld\n",
-		       fname, l);
-		data = "ID3v1 tag";
+		out(l, "ID3v1 tag (in middle of song)");
 		if (fread(b+4, 124, 1, f) != 1) {
 		    printf("    short tag\n");
 		    break;
 		}
 		parse_tag_v1(b);
-		j = 0;
 		l += 128;
+		continue;
 	    }
 	    else if ((h&0xffffff00) == (('I'<<24)|('D'<<16)|('3'<<8))) {
-		printf("%s: ID3v2 tag at %ld\n", fname, l);
+		out(l, "ID3v2.%c", h&0xff);
 		if (fread(b+4, 6, 1, f) != 1) {
 		    printf("    short header\n");
 		    break;
@@ -127,24 +128,28 @@ process_file(FILE *f, char *fname)
 		}
 		parse_tag_v2(b, j);
 		l += j;
-		j = 0;
+		continue;
 	    }
 	    else {
 		/* not recognized */
-		printf("%s: illegal header at %ld: 0x%lx\n",
-		       fname, l, h);
+		out(l, "illegal header 0x%lx\n", h);
 		/* resync? */
 		break;
 	    }
 	}
 	if (j>4) {
 	    if ((n=fread(b, 1, j-4, f)) != j-4) {
-		printf("%s: short last frame at %ld: %d of %d bytes\n",
-		       fname, l, n+4, j);
+		out(l, "short last frame: %d of %d bytes\n", n+4, j);
 		break;
 	    }
 	}
 	l += j;
+    }
+
+    if (ferror(f)) {
+	fprintf(stderr, "%s: read error on %s: %s\n",
+		prg, fname, strerror(errno));
+	return -1;
     }
 
     return 0;
@@ -271,4 +276,34 @@ parse_tag_v1(char *data)
     }
     printf("   Year:\t");
     print_field(data+93, 4);
+}
+
+
+
+static char *out_fname;
+static int out_fname_done;
+
+void
+out_start(char *fname)
+{
+    out_fname = fname;
+    out_fname_done = 0;
+}
+
+void
+out(long pos, char *fmt, ...)
+{
+    va_list argp;
+
+    if (!out_fname_done) {
+	printf("%s:\n", out_fname);
+	out_fname_done = 1;
+    }
+
+    printf(" at %ld: ", pos);
+
+    va_start(argp, fmt);
+    vprintf(fmt, argp);
+    va_end(argp);
+    putc('\n', stdout);
 }
