@@ -6,6 +6,7 @@
 
 #include "config.h"
 #include "mpg123.h"
+#include "inbuf.h"
 
 void build_length_table(int *table);
 int process_file(FILE *f, char *fname);
@@ -100,6 +101,11 @@ int output;
 #define GET_ID3LEN(x)	((((x)[0]&0x7f)<<21)|(((x)[1]&0x7f)<<14) \
 			 |(((x)[2]&0x7f)<<7)|((x)[3]&0x7f))
 
+#define LONG_TO_ID3LEN(l)	((((l)&0x7f000000)>>3) \
+				 | (((l)&0x7f0000)>>2) \
+				 | (((l)&0x7f00)>>1) \
+				 | (((l)&0x7f)))
+
 #define IS_SYNC(h)	(((h)&0xfff00000) == 0xfff00000)
 #define IS_MPEG(h)	(IS_SYNC(h) && table[((h)&0x000fffe0)>>9])
 #define IS_ID3v1(h)	(((h)&0xffffff00) == (('T'<<24)|('A'<<16)|('G'<<8)))
@@ -139,6 +145,7 @@ void out_start(char *fname);
 void out(long pos, char *fmt, ...);
 
 char *mem2asc(char *mem, int len);
+char *ulong2asc(unsigned long);
 void print_header(long pos, unsigned long h);
 
 void parse_tag_v1(long pos, char *data);
@@ -226,11 +233,12 @@ main(int argc, char **argv)
 int
 process_file(FILE *f, char *fname)
 {
+    struct inbuf *ib;
     int j, n, crc_f, crc_c;
     int bitres, frlen, frback;
     long l, len;
     unsigned long h, h_old;
-    unsigned char b[8192];
+    unsigned char b[130], *p;
 
     out_start(fname);
 
@@ -238,10 +246,11 @@ process_file(FILE *f, char *fname)
 	len = ftell(f);
 	if (fread(b, 128, 1, f) == 1) {
 	    if (strncmp(b, "TAG", 3) == 0) {
-		len -= 128;
 		if (output & OUT_TAG)
 		    parse_tag_v1(len, b);
 	    }
+	    else
+		len += 128;
 	}
 	if (fseek(f, 0, SEEK_SET) < 0) {
 	    fprintf(stderr, "%s: cannot rewind %s: %s\n",
@@ -252,19 +261,20 @@ process_file(FILE *f, char *fname)
     else
 	len = -1;
 
+    ib = inbuf_new(f, len);
+
     bitres = 0;
     l = 0;
     h_old = 0;
-    while((len < 0 || l < len-3) && fread(b, 4, 1, f) > 0) {
-	h = GET_LONG(b);
+    while (inbuf_getlong(&h, l, ib) >= 0) {
 
     resynced:
 	if (IS_SYNC(h)) {
 	    j = table[(h&0x000fffe0)>>9];
 	    if (j == 0) {
 		if (output & OUT_HEAD_ILLEGAL)
-		    out(l, "illegal header 0x%lx (%s)", h, mem2asc(b, 4));
-		if (resync(&l, &h, f) < 0)
+		    out(l, "illegal header 0x%lx (%s)", h, ulong2asc(h));
+		if (resync(&l, &h, ib) < 0)
 		    break;
 		else
 		    goto resynced;
@@ -272,7 +282,7 @@ process_file(FILE *f, char *fname)
 	}
 	else {
 	    if (IS_ID3v1(h)) {
-		if (fread(b+4, 124, 1, f) != 1) {
+		if (inbuf_copy(&p, l, 128, ib) != 128) {
 		    if (output & OUT_TAG_SHORT) {
 			out(l, "ID3v1 tag (in middle of song)");
 			printf("    short tag\n");
@@ -280,21 +290,25 @@ process_file(FILE *f, char *fname)
 		    break;
 		}
 		else
-		    if (output & OUT_TAG)
-			parse_tag_v1(l, b);
+		    if (output & OUT_TAG) {
+			parse_tag_v1(l, p);
+		    }
 		l += 128;
 		continue;
 	    }
 	    else if (IS_ID3v2(h)) {
-		if (fread(b+4, 6, 1, f) != 1) {
+		inbuf_keep(l, ib);
+		if (inbuf_getc(l+10, ib) < 0) {
 		    if (output & OUT_TAG_SHORT) {
 			out(l, "ID3v2.%c", (h&0xff)+'0');
 			printf("    short header\n");
 		    }
 		    break;
 		}
-		j = GET_ID3LEN(b+6);
-		if (fread(b+10, j, 1, f) != 1) {
+		inbuf_getlong(&h, l+6, ib);
+		inbuf_unkeep(ib);
+		j = LONG_TO_ID3LEN(h) + 10;
+		if (inbuf_copy(&p, l, j, ib) != j) {
 		    if (output & OUT_TAG_SHORT) {
 			out(l, "ID3v2.%c", (h&0xff)+'0');
 			printf("    short tag\n");
@@ -302,24 +316,28 @@ process_file(FILE *f, char *fname)
 		    break;
 		}
 		if (output & OUT_TAG)
-		    parse_tag_v2(l, b, j);
+		    parse_tag_v2(l, p, j);
 		l += j;
 		continue;
 	    }
 	    else {
 		/* no sync */
 		if (output & OUT_HEAD_ILLEGAL)
-		    out(l, "illegal header 0x%lx (%s)", h, mem2asc(b, 4));
-		if (resync(&l, &h, f) < 0)
+		    out(l, "illegal header 0x%lx (%s)", h, ulong2asc(h));
+		if (resync(&l, &h, ib) < 0)
 		    break;
 		else
 		    goto resynced;
 	    }
 	}
 	if (j>4) {
-	    n = fread(b+4, 1, j-4, f) + 4;
-	    if (len >= 0 && l+n > len)
-		n = len-l;
+	    inbuf_keep(l, ib);
+	    if (n =inbuf_getc(l+j, ib) == EOF)
+		n = inbuf_length(ib) - l;
+	    else
+		n = j;
+	    inbuf_unkeep(ib);
+
 	}
 
 	if (h_old == 0) {
@@ -337,9 +355,12 @@ process_file(FILE *f, char *fname)
 	}
 	h_old = h; 
 
+	/* XXX: only if framedata needed */
+	inbuf_copy(&p, l, j, ib);
+
 	if ((output & OUT_CRC_ERROR) && MPEG_CRC(h)) {
-	    crc_c = crc_frame(h, b, j);
-	    crc_f = GET_SHORT(b+4);
+	    crc_c = crc_frame(h, p, j);
+	    crc_f = GET_SHORT(p+4);
 
 	    if (crc_c != -1 && crc_c != crc_f)
 		out(l, "CRC error (calc:%04x != file:%04x)", crc_c, crc_f);
@@ -349,7 +370,7 @@ process_file(FILE *f, char *fname)
 		       |OUT_BITR_GAP|OUT_LFRAME_SHORT
 		       |OUT_LFRAME_PADDING))
 	    && MPEG_LAYER(h) == 3) {
-	    check_l3bitres(l, h, b, n, j, &bitres);
+	    check_l3bitres(l, h, p, n, j, &bitres);
 	}
 	else if (n < j && (output & OUT_LFRAME_SHORT)) {
 	    out(l, "short last frame: %d of %d bytes (%d missing)",
@@ -363,9 +384,11 @@ process_file(FILE *f, char *fname)
     if (ferror(f)) {
 	fprintf(stderr, "%s: read error on %s: %s\n",
 		prg, fname, strerror(errno));
+	inbuf_free(ib);
 	return -1;
     }
 
+    inbuf_free(ib);
     return 0;
 }
 
@@ -638,6 +661,29 @@ mem2asc(char *mem, int len)
 
 
 
+char *
+ulong2asc(unsigned long l)
+{
+    static char asc[5];
+
+    int i, c;
+
+    for (i=0; i<4; i++) {
+	c = (l>>(24-i*8)) & 0xff;
+	/* XXX: NetBSD's isprint returns true for extended control chars */
+	if (isprint(c) && isascii(c))
+	    asc[i] = c;
+	else
+	    asc[i] = '.';
+    }
+
+    asc[4] = '\0';
+
+    return asc;
+}
+
+
+
 void
 print_header(long pos, unsigned long h)
 {
@@ -758,20 +804,41 @@ get_sideinfo(struct sideinfo *si, unsigned long h, unsigned char *b, int blen)
 
 
 #define MAX_SKIP  65536
+#define MIN_CONSEC 6
 
 int
-resync(long *lp, unsigned long *hp, FILE *f)
+resync(long *lp, unsigned long *hp, struct inbuf *ib)
 {
     unsigned long h;
-    long l, try;
-    int c;
+    long l, try, l2;
+    int c, j, i, valid;
 
     l = *lp;
     h = *hp;
 
-    for (try=1; (c=getc(f))!=EOF && try<MAX_SKIP; try++) {
+    for (try=1; (c=inbuf_getc(l+try+3, ib))>=0 && try<MAX_SKIP; try++) {
 	h = (h<<8)|(c&0xff);
 	if (IS_VALID(h)) {
+	    if (IS_SYNC(h)) {
+		inbuf_keep(l+try, ib);
+		valid = 1;
+		l2 = l+try;
+		for (i=0; i<MIN_CONSEC; i++) {
+		    l2 += table[(h&0x000fffe0)>>9];
+		    if (inbuf_getlong(&h, l2, ib) < 0)
+			break;
+		    if (!IS_VALID(h)) {
+			valid = 0;
+			break;
+		    }
+		    else if (!IS_SYNC(h))
+			break;
+		}
+		inbuf_unkeep(ib);
+
+		if (!valid)
+		    continue;
+	    }
 	    if (output & OUT_RESYNC_SKIP)
 		out(l, "skipping %d bytes", try);
 	    *hp = h;
@@ -780,7 +847,11 @@ resync(long *lp, unsigned long *hp, FILE *f)
 	}
     }
 
-    if (output & OUT_RESYNC_BAILOUT)
+    if (c < 0) {
+	if (output & OUT_RESYNC_SKIP)
+	    out(l, "skipping %d bytes, reaching EOF", try);
+    }
+    else if (output & OUT_RESYNC_BAILOUT)
 	out(l, "no sync found in 64k, bailing out");
     return -1;
 }
