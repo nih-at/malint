@@ -293,7 +293,7 @@ process_file(FILE *f, char *fname)
 		    /* ignores padding, mode ext. */
 		    if ((h_old & h_change_mask) != (h & h_change_mask))
 			print_header(l, h, -1);
-		    /* out(l, "header change: 0x%lx -> 0x%lx", h_old, h); */
+		    /* out(l, "header change: 0x%08lx -> 0x%08lx", h_old, h);*/
 		}
 		h_old = h; 
 		
@@ -383,7 +383,7 @@ process_file(FILE *f, char *fname)
 	    else {
 		/* no sync */
 		if (output & OUT_HEAD_ILLEGAL)
-		    out(l, "illegal header 0x%lx (%s)", h, ulong2asc(h));
+		    out(l, "illegal header 0x%08lx (%s)", h, ulong2asc(h));
 		if (resync(&l, &h, ib, 0) < 0)
 		    break;
 		else

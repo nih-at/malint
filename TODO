@@ -12,11 +12,12 @@ B Prince/rest/4-16: tag not found if from stdin
 - VBR: check frames and bytes against actual values, warn about tags in middle
 - VBR: check toc against frame positions in stream
 - frame data length and crc for layer 2
-- validity check on main data
+- validity check on side info / main data
 - check integrity of tags
 - check devaition from bitstream rate
 - compute length in MSF correctly if sample rate changes
 - statistics
 	min/av/max: bitrate, samprate, dlen, main_data_begin, bitres
 	count: frames (good/bad), skiped bytes
+	ms/i-stereo
 F fix mp3
