@@ -93,7 +93,7 @@ process_file(FILE *f, char *fname)
 	len = -1;
 
     l = 0;
-    while((len < 0 || l < len) && fread(b, 4, 1, f) > 0) {
+    while((len < 0 || l < len-3) && fread(b, 4, 1, f) > 0) {
 	h = GET_LONG(b);
 	
 	if ((h&0xfff00000) == 0xfff00000) {
@@ -138,8 +138,11 @@ process_file(FILE *f, char *fname)
 	    }
 	}
 	if (j>4) {
-	    if ((n=fread(b, 1, j-4, f)) != j-4) {
-		out(l, "short last frame: %d of %d bytes", n+4, j);
+	    n = fread(b, 1, j-4, f) + 4;
+	    if (len >= 0 && l+n > len)
+		n = len-l;
+	    if (n < j) {
+		out(l, "short last frame: %d of %d bytes", n, j);
 		break;
 	    }
 	}
