@@ -26,7 +26,7 @@
 
 
 
-extern int _mp3_samp_tab[2][4];		/* in build_frame_tab.c */
+extern int _mp3_samp_tab[2][3];		/* in build_frame_tab.c */
 extern int _mp3_bit_tab[2][16][3];	/* in build_frame_tab.c */
 extern int _mp3_jsb_tab[3][4];
 extern int _mp3_nsamp_tab[3];

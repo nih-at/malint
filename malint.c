@@ -54,7 +54,7 @@ static char help_head[] = "MPEG Audio lint (" PACKAGE ") " VERSION
 struct option options[] = {
     { "help",        0, 0, 'h' },
     { "version",     0, 0, 'V' },
-    { "info-only",   0, 0, 'I' },
+    { "fast-info",   0, 0, 'I' },
     { "error",       0, 0, 'E' },
     { "no-crc",      0, 0, 'C' },
     { "crc",         0, 0, 'c' },
@@ -129,7 +129,7 @@ main(int argc, char **argv)
     build_length_table(table);
     crc_init();
 
-    output = 0xffff & ~OUT_FASTINFO_ONLY;
+    output = 0xfffffff & ~OUT_FASTINFO_ONLY;
 
     opterr = 0;
     while ((c=getopt_long(argc, argv, OPTIONS, options, 0)) != EOF) {
@@ -738,10 +738,10 @@ warn_short_frame(long l, int dlen, int flen, int blen, int eof)
     }
     else {
 	if (eof && (output & OUT_LFRAME_PADDING))
-	    out(l, "padding missing from frame (%d of %d bytes)",
+	    out(l, "padding missing from last frame (%d of %d bytes)",
 		flen-blen, flen-dlen);
 	else if (!eof && (output & OUT_FRAME_PADDING))
-	    out(l, "padding missing from last frame (%d of %d bytes)",
+	    out(l, "padding missing from frame (%d of %d bytes)",
 		flen-blen, flen-dlen);
     }
 }

@@ -22,9 +22,9 @@
 
 
 
-int _mp3_samp_tab[2][4] = {
-    {22050, 24000, 16000, 50000},
-    {44100, 48000, 32000, 50000}
+int _mp3_samp_tab[2][3] = {
+    {22050, 24000, 16000},
+    {44100, 48000, 32000}
 };
 
 int _mp3_bit_tab[2][16][3] = {
@@ -79,7 +79,7 @@ build_length_table(int *table)
     for (version=0; version<2; version++) {
 	for (layer=1; layer<4; layer++) {
 	    for (bitrate=1; bitrate<15; bitrate++) {
-		for (samprate=0; samprate<4; samprate++) {
+		for (samprate=0; samprate<3; samprate++) {
 		    l = (version
 			 ? (layer==1 ? 48000:144000)
 			 : (layer==1 ? 24000: 72000))

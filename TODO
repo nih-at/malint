@@ -1,3 +1,4 @@
+B Prince/rest/4-16: tag not found if from stdin
 + release
 + add copyright comments to mpg123.[ch]
 + configure: test for uncommon functions, add replacements (which?)
@@ -16,6 +17,6 @@
 - check devaition from bitstream rate
 - compute length in MSF correctly if sample rate changes
 - statistics
-	min/av/max: bitrate, samprate
+	min/av/max: bitrate, samprate, dlen, main_data_begin, bitres
 	count: frames (good/bad), skiped bytes
 F fix mp3
