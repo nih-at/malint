@@ -40,6 +40,8 @@ extern unsigned char *wordpointer;
 
 
 
+int I_get_bit_alloc(unsigned long h, int *balloc);
+
 short III_get_side_info_1(struct sideinfo *si, int stereo,
 			  int ms_stereo, long sfreq, int single);
 short III_get_side_info_2(struct sideinfo *si, int stereo,

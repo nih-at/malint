@@ -1,3 +1,4 @@
+#include "mpeg.h"
 #include "mpg123.h"
 
 int bitindex;
@@ -264,4 +265,29 @@ int mpg123_get1bit(void)
     bitindex &= 7;
     
     return rval >> 7;
+}
+
+
+
+int
+I_get_bit_alloc(unsigned long h, int *balloc)
+{
+    int *ba = balloc;
+    int i, jsbound;
+    
+    if (MPEG_MODE(h) != MPEG_MODE_SINGLE) {
+	jsbound = MPEG_JSBOUND(h);
+	
+	for (i=0; i<jsbound; i++) {
+	    *ba++ = mpg123_getbits_fast(4);
+	    *ba++ = mpg123_getbits_fast(4);
+	}
+	for (i=jsbound; i<MPEG_SBLIMIT; i++)
+	    *ba++ = mpg123_getbits_fast(4);
+    }
+    else
+	for (i=0; i<MPEG_SBLIMIT; i++)
+	    *ba++ = mpg123_getbits_fast(4);
+
+    return ba-balloc;
 }

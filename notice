@@ -1,6 +1,5 @@
 /*
-  mpeg.c -- MPEG tables
-
+   -- 
   Copyright (C) 2000 Dieter Baron
 
   This file is part of malint, an MPEG Audio stream validator.
@@ -23,8 +22,3 @@
 
 
 
-
-#include "mpeg.h"
-
-/* number of samples per frame */
-int _mp3_nsamp_tab[3] = { 384, 1152, 1152 };

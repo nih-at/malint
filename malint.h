@@ -28,6 +28,8 @@
 extern char *prg;
 extern int output;
 
+
+
 /* data access function */
 
 #define GET_LONG(x)	(((x)[0]<<24)|((x)[1]<<16)|((x)[2]<<8)|(x)[3])
@@ -44,7 +46,8 @@ extern int output;
 /* check functions */
 
 #define IS_SYNC(h)	(((h)&0xfff00000) == 0xfff00000)
-#define IS_MPEG(h)	(IS_SYNC(h) && MPEG_FRLEN(h))
+#define IS_MPEG(h)	(IS_SYNC(h) && MPEG_FRLEN(h) \
+			 && MPEG_EMPH(h) != MPEG_EMPH_RESERVED)
 #define IS_ID3v1(h)	(((h)&0xffffff00) == (('T'<<24)|('A'<<16)|('G'<<8)))
 #define IS_ID3v2(h)	(((h)&0xffffff00) == (('I'<<24)|('D'<<16)|('3'<<8)))
 #define IS_ID3(h)	(IS_ID3v1(h) || IS_ID3v2(h))
@@ -53,29 +56,47 @@ extern int output;
 
 /* output and check selection constants */
 
-#define OUT_TAG			0x00001
-#define OUT_TAG_CONTENTS	0x00002
-#define OUT_TAG_SHORT		0x02000
-#define OUT_PLAYTIME		0x08000
-#define OUT_HEAD_1ST		0x00004
-#define OUT_FASTINFO_ONLY	0x04000
-#define OUT_HEAD_CHANGE		0x00008
-#define OUT_HEAD_ILLEGAL	0x00010
-#define OUT_RESYNC_SKIP		0x00020
-#define OUT_RESYNC_BAILOUT	0x00040
-#define OUT_CRC_ERROR		0x00080
-#define OUT_BITR_OVERFLOW	0x00100
-#define OUT_BITR_FRAME_OVER	0x00200
-#define OUT_BITR_GAP		0x00400
-#define OUT_LFRAME_SHORT	0x00800
-#define OUT_LFRAME_PADDING	0x01000
-#define OUT_VBR_TOC_NONINC	0x10000
-#define OUT_VBR_UNSUPP_FLAG	0x20000
-#define OUT_VBR_SHORT		0x40000
+#define OUT_TAG			0x000001
+#define OUT_TAG_CONTENTS	0x000002
+#define OUT_TAG_SHORT		0x002000
+#define OUT_PLAYTIME		0x008000
+#define OUT_HEAD_1ST		0x000004
+#define OUT_FASTINFO_ONLY	0x004000
+#define OUT_HEAD_CHANGE		0x000008
+#define OUT_HEAD_ILLEGAL	0x000010
+#define OUT_RESYNC_SKIP		0x000020
+#define OUT_RESYNC_BAILOUT	0x000040
+#define OUT_CRC_ERROR		0x000080
+#define OUT_BITR_OVERFLOW	0x000100
+#define OUT_BITR_FRAME_OVER	0x000200
+#define OUT_BITR_GAP		0x000400
+#define OUT_LFRAME_SHORT	0x000800
+#define OUT_LFRAME_PADDING	0x001000
+#define OUT_FRAME_SHORT		0x080000
+#define OUT_FRAME_PADDING	0x100000
+#define OUT_VBR_TOC_NONINC	0x010000
+#define OUT_VBR_UNSUPP_FLAG	0x020000
+#define OUT_VBR_SHORT		0x040000
 
 #define OUT_M_ERROR (OUT_TAG_SHORT|OUT_HEAD_CHANGE \
 		     |OUT_HEAD_ILLEGAL|OUT_RESYNC_SKIP|OUT_RESYNC_BAILOUT \
 		     |OUT_CRC_ERROR|OUT_BITR_OVERFLOW|OUT_BITR_FRAME_OVER \
-		     |OUT_LFRAME_SHORT|OUT_VBR_TOC_NONINC|OUT_VBR_SHORT) \
+		     |OUT_LFRAME_SHORT|OUT_VBR_TOC_NONINC|OUT_VBR_SHORT \
+                     |OUT_FRAME_SHORT|OUT_FRAME_PADDING)
+
+#define OUT_M_CHECK_FRAME (OUT_BITR_OVERFLOW|OUT_BITR_FRAME_OVER|OUT_BITR_GAP \
+			   |OUT_LFRAME_SHORT|OUT_LFRAME_PADDING \
+			   |OUT_FRAME_SHORT|OUT_FRAME_PADDING)
+
+
+
+/* crc */
+void crc_init(void);
+int crc_frame(unsigned long h, unsigned char *data, int len);
+
+/* id3 */
+void parse_tag_v1(long pos, char *data);
+void parse_tag_v2(long pos, unsigned char *data, int len);
+
 
 #endif /* malint.h */

@@ -53,7 +53,9 @@ extern int _mp3_nsamp_tab[3];
 /* computed values from header */
 
 #define MPEG_FRLEN(h)	(table[((h)&0x000fffe0)>>9])
-#define MPEG_JSBOUND(h)	(_mp3_jsb_tab[MPEG_LAYER(h)-1][MPEG_MODEEXT(h)])
+#define MPEG_JSBOUND(h)	(MPEG_MODE(h) == MPEG_MODE_JSTEREO \
+			 ? (MPEG_MODEEXT(h)<<2)+4 \
+			 : MPEG_SBLIMIT)
 #define MPEG_SILEN(h)   (MPEG_VERSION(h) == 1 \
 			 ? (MPEG_MODE(h) == MPEG_MODE_SINGLE ? 17 : 32) \
 			 : (MPEG_MODE(h) == MPEG_MODE_SINGLE ?  9 : 17))
@@ -66,5 +68,14 @@ extern int _mp3_nsamp_tab[3];
 #define MPEG_MODE_DUAL		0x2
 #define MPEG_MODE_SINGLE	0x3
 
+#define MPEG_EMPH_NONE		0x0
+#define MPEG_EMPH_MS5015	0x1
+#define MPEG_EMPH_RESERVED	0x2
+#define MPEG_EMPH_CCITT		0x3
+
+/* other constants */
+
+#define MPEG_SBLIMIT		32
+#define MPEG_SCALE_BLOCK	12
 
 #endif /* mpeg.h */

@@ -97,11 +97,13 @@ int output;
 int process_file(FILE *f, char *fname);
 int resync(long *lp, unsigned long *hp, struct inbuf *ib, int inframe);
 
-static void crc_init(void);
-static void crc_update(int *crc, unsigned char b);
-static int crc_frame(unsigned long h, unsigned char *data, int len);
-void check_l3bitres(long pos, unsigned long h, unsigned char *b, int blen,
-		    int flen, int *bitresp);
+int check_l1(long pos, unsigned long h, unsigned char *b, int blen, int flen);
+int check_l3(long pos, unsigned long h, unsigned char *b, int blen,
+	     int flen, int *bitresp);
+int get_l1_bit_alloc(int *balloc, unsigned long h,
+			 unsigned char *b, int blen);
+static void warn_short_frame(long l, int dlen, int flen, int blen, int eof);
+
 
 void out_start(char *fname);
 void out(long pos, char *fmt, ...);
@@ -204,8 +206,8 @@ process_file(FILE *f, char *fname)
 {
     struct vbr *vbr;
     struct inbuf *ib;
-    int j, n, crc_f, crc_c, i;
-    int bitres, frlen, frback;
+    int dlen, flen, n, crc_f, crc_c, i;
+    int bitres, frlen, frback, eof;
     long l, lresync, len, nframes, bitr;
     unsigned long h, h_old, h_next, h_change_mask;
     unsigned char b[130], *p;
@@ -239,20 +241,22 @@ process_file(FILE *f, char *fname)
     l = 0;
     h_old = 0;
     h_change_mask = 0xfffffdcf;
+    eof = 0;
 
     while (inbuf_getlong(&h, l, ib) >= 0) {
     resynced:
 	if (IS_MPEG(h)) {
-	    n = j = MPEG_FRLEN(h);
+	    n = flen = MPEG_FRLEN(h);
 	    inbuf_keep(l, ib);
 	    h_next = 0;
-	    inbuf_getlong(&h_next, l+j, ib);
-	    inbuf_unkeep(ib);
-	    if (!IS_VALID(h_next)) {
+	    if (inbuf_getlong(&h_next, l+flen, ib) < 0)
+		eof = 1;
+	    else if (!IS_VALID(h_next)) {
 		lresync = l;
 		if (resync(&lresync, &h_next, ib, 1) >= 0)
-		    n = ((lresync-l) < j ? (lresync-l) : j);
+		    n = ((lresync-l) < flen ? (lresync-l) : flen);
 	    }
+	    inbuf_unkeep(ib);
 	    n = inbuf_copy(&p, l, n, ib);
 
 	    if (MPEG_LAYER(h) == 3 && IS_XING(GET_LONG(p+4+MPEG_SILEN(h)))) {
@@ -298,7 +302,7 @@ process_file(FILE *f, char *fname)
 		h_old = h; 
 		
 		if ((output & OUT_CRC_ERROR) && MPEG_CRC(h)) {
-		    crc_c = crc_frame(h, p, j);
+		    crc_c = crc_frame(h, p, n);
 		    crc_f = GET_SHORT(p+4);
 		    
 		    if (crc_c != -1 && crc_c != crc_f)
@@ -306,17 +310,33 @@ process_file(FILE *f, char *fname)
 			    crc_c, crc_f);
 		}
 		
-		if ((output & (OUT_BITR_OVERFLOW|OUT_BITR_FRAME_OVER
-			       |OUT_BITR_GAP|OUT_LFRAME_SHORT
-			       |OUT_LFRAME_PADDING))
-		    && MPEG_LAYER(h) == 3) {
-		    check_l3bitres(l, h, p, n, j, &bitres);
+		if (output & (OUT_M_CHECK_FRAME)) {
+		    switch (MPEG_LAYER(h)) {
+		    case 1:
+			dlen = check_l1(l, h, p, n, flen);
+			break;
+		    case 2:
+			dlen = flen;
+			break;
+		    case 3:
+			dlen = check_l3(l, h, p, n, flen, &bitres);
+			break;
+		    }
+
+		    if (dlen > flen && (output & OUT_BITR_FRAME_OVER))
+			out(l, "frame data overflows frame (%d > %d)",
+			    dlen, flen);
+		    
+		    if (n != flen)
+			warn_short_frame(l, dlen, flen, n, eof);
 		}
+#if 0
 		else if (n < j && (output & OUT_LFRAME_SHORT)) {
 		    /* XXX: check for EOF */
 		    out(l, "short frame: %d of %d bytes (%d missing)",
 			n, j, j-n);
 		}
+#endif
 
 		if (vbr)
 		    bitr += MPEG_BITRATE(h);
@@ -351,8 +371,8 @@ process_file(FILE *f, char *fname)
 		}
 		inbuf_getlong(&h, l+6, ib);
 		inbuf_unkeep(ib);
-		j = LONG_TO_ID3LEN(h) + 10;
-		if (inbuf_copy(&p, l, j, ib) != j) {
+		n = LONG_TO_ID3LEN(h) + 10;
+		if (inbuf_copy(&p, l, n, ib) != n) {
 		    if (output & OUT_TAG_SHORT) {
 			out(l, "ID3v2.%c", (h&0xff)+'0');
 			printf("    short tag\n");
@@ -360,8 +380,8 @@ process_file(FILE *f, char *fname)
 		    break;
 		}
 		if (output & OUT_TAG)
-		    parse_tag_v2(l, p, j);
-		l += j;
+		    parse_tag_v2(l, p, n);
+		l += n;
 		continue;
 	    }
 	    else {
@@ -417,153 +437,6 @@ process_file(FILE *f, char *fname)
 
 
 
-static char *__tags[] = {
-    "TALB", "TAL", "Album",
-    "TIT2", "TT2", "Title",
-    "TPE1", "TP1", "Artist",
-    "TPOS", "TPA", "CD",
-    "TRCK", "TRK", "Track",
-    "TYER", "TYE", "Year",
-    NULL, NULL
-};
-
-void
-parse_tag_v2(long pos, unsigned char *data, int len)
-{
-    char *p, *end;
-    int i;
-
-    out(pos, "ID3v2.%c.%c tag", data[3]+'0', data[4]+'0');
-
-    if (!(output & OUT_TAG_CONTENTS))
-	return;
-
-    if (data[5]&0x80) {
-	printf("   unsynchronization not supported\n");
-	return;
-    }
-    if (data[3] == 2)
-	parse_tag_v22(data, len);
-    else if (data[3] != 3) {
-	printf("   unsupported version 2.%d.%d\n",
-	       data[3], data[4]);
-	return;
-    }
-
-    p = data + 10;
-
-    if (data[5]&0x40) { /* extended header */
-	len -= GET_LONG(data+16);
-	p += GET_LONG(data+10) + 4;
-    }
-
-    end = data + len + 10;
-
-    while (p < end) {
-	if (memcmp(p, "\0\0\0\0", 4) == 0)
-	    break;
-	len = GET_LONG(p+4);
-	if (len < 0)
-	    break;
-	for (i=0; __tags[i]; i+=3)
-	    if (strncmp(p, __tags[i], 4) == 0) {
-		if (p[10] == 0) 
-		    printf("   %s:\t%.*s\n", __tags[i+2], len-1, p+11);
-		break;
-	    }
-	p += len + 10;
-    }
-}
-
-
-
-void
-parse_tag_v22(unsigned char *data, int len)
-{
-    char *p, *end;
-    int i;
-
-    if (data[5] & 0x40) {
-	printf("    version 2.2 compression not supported\n");
-	return;
-    }
-
-    p = data + 10;
-
-    end = data + len + 10;
-
-    while (p < end) {
-	if (memcmp(p, "\0\0\0", 3) == 0)
-	    break;
-	len = GET_INT3(p+3);
-	if (len < 0)
-	    break;
-	for (i=0; __tags[i]; i+=3)
-	    if (strncmp(p, __tags[i+1], 3) == 0) {
-		if (p[6] == 0) 
-		    printf("   %s:\t%.*s\n", __tags[i+2], len-1, p+7);
-		break;
-	    }
-	p += len + 6;
-    }
-}
-
-
-
-static int
-field_len(char *data, int len)
-{
-    int l;
-
-    for (l=0; l<len && data[l]; l++)
-	;
-
-    if (l==len) { /* space padding */
-	for (; data[l-1] == ' '; --l)
-	    ;
-    }
-
-    return l;
-}
-
-
-
-void
-parse_tag_v1(long pos, char *data)
-{
-    static struct {
-	char *name;
-	int start, len;
-    } field[] = {
-	{ "Artist", 33, 30 },
-	{ "Title",   3, 30 },
-	{ "Album",  63, 30 },
-	{ "Year",   93,  4 },
-	{ NULL,      0,  0 }
-    };
-
-    int v11, i, len;
-
-    v11 = data[126] && data[125] == 0;
-
-    out(pos, "ID3v1%s tag", v11 ? ".1" : "");
-
-    if (!(output & OUT_TAG_CONTENTS))
-	return;
-
-    for (i=0; field[i].name; i++) {
-	len = field_len(data+field[i].start, field[i].len);
-	if (len > 0) {
-	    printf("   %s:\t%.*s\n",
-		   field[i].name, len, data+field[i].start);
-	}
-    }
-    if (v11)
-	printf("   Track:\t%d\n", data[126]);
-}
-
-
-
 static char *out_fname;
 static int out_fname_done;
 
@@ -590,78 +463,6 @@ out(long pos, char *fmt, ...)
     vprintf(fmt, argp);
     va_end(argp);
     putc('\n', stdout);
-}
-
-
-
-#define MPEG_CRCPOLY	0x18005
-
-static int crc_tab[256];
-
-
-
-static void
-crc_init(void)
-{
-    int i, x, j;
-    
-    for(i=0; i<256; i++) {
-	x = i << 9;
-	for(j=0; j<8; j++, x<<=1)
-	    if (x & 0x10000)
-		x ^= MPEG_CRCPOLY;
-	crc_tab[i] = x >> 1;
-    }
-}
-
-
-
-static void
-crc_update(int *crc, unsigned char b)
-{
-    *crc = crc_tab[(*crc>>8)^b] ^ ((*crc<<8)&0xffff);
-}
-
-
-
-static int
-crc_frame(unsigned long h, unsigned char *data, int len)
-{
-    int i, crc, n;
-
-    switch (MPEG_LAYER(h)) {
-    case 1:
-	switch (MPEG_MODE(h)) {
-	case MPEG_MODE_SINGLE:
-	    n = 16;
-	    break;
-	case MPEG_MODE_JSTEREO:
-	    n = (32+MPEG_JSBOUND(h))/2;
-	    break;
-	case MPEG_MODE_STEREO:
-	case MPEG_MODE_DUAL:
-	    n = 32;
-	    break;
-	}
-	break;
-
-    case 2:
-	return -1;
-	
-    case 3:
-	n = MPEG_SILEN(h);
-	break;
-    }
-
-    crc = 0xffff;
-
-    crc_update(&crc, data[2]);
-    crc_update(&crc, data[3]);
-
-	for(i=0; i < n; i++)
-	    crc_update(&crc, data[i+6]);
-	
-	return crc;
 }
 
 
@@ -739,9 +540,9 @@ print_header(long pos, unsigned long h, int vbrkbps)
 
 
 
-void
-check_l3bitres(long pos, unsigned long h, unsigned char *b, int blen,
-	       int flen, int *bitresp)
+int
+check_l3(long pos, unsigned long h, unsigned char *b, int blen,
+	 int flen, int *bitresp)
 {
     struct sideinfo si;
 
@@ -753,7 +554,7 @@ check_l3bitres(long pos, unsigned long h, unsigned char *b, int blen,
 
     if (get_sideinfo(&si, h, b, blen) < 0) {
 	out(pos, "cannot parse sideinfo");
-	return;
+	return flen;
     }
 	
     back = si.main_data_begin;
@@ -776,29 +577,9 @@ check_l3bitres(long pos, unsigned long h, unsigned char *b, int blen,
 	out(pos, "main_data_begin overflows bit reservoir (%d > %d)",
 	    back, *bitresp);
     
-    if (this_len > flen && (output & OUT_BITR_FRAME_OVER))
-	out(pos, "frame data overflows frame (%d > %d)",
-	    this_len, flen);
-
     if (back != max_back && back != 0 && back < *bitresp
 	&& next_bitres < max_back && (output & OUT_BITR_GAP))
 	out(pos, "gap in bit stream (%d < %d)", back, *bitresp);
-
-    if (blen != flen) {
-	if (this_len > blen) {
-	    if (output & OUT_LFRAME_SHORT)
-		out(pos, "short last frame %d of %d bytes (%d+%d=%d missing)",
-		    blen, flen, this_len-blen, flen-this_len, flen-blen);
-	}
-	else if (output & OUT_LFRAME_PADDING) {
-	    if (blen == this_len)
-		out(pos, "padding missing from last frame (%d bytes)",
-		    flen-this_len);
-	    else
-		out(pos, "padding missing from last frame (%d of %d bytes)",
-		    flen-blen, flen-this_len);
-	}
-    }
 
 #if 0
     out(pos, "debug: bitres=%d, back=%d, dlen=%d, this_len=%d, flen=%d\n",
@@ -806,6 +587,8 @@ check_l3bitres(long pos, unsigned long h, unsigned char *b, int blen,
 #endif
 
     *bitresp = next_bitres;
+
+    return this_len;
 }
 
 
@@ -886,4 +669,79 @@ resync(long *lp, unsigned long *hp, struct inbuf *ib, int inframe)
     else if (!inframe && (output & OUT_RESYNC_BAILOUT))
 	out(l, "no sync found in 64k, bailing out");
     return -1;
+}
+
+
+
+int 
+get_l1_bit_alloc(int *balloc, unsigned long h, unsigned char *b, int blen)
+{
+    wordpointer = b + 4 + MPEG_CRC(h)*2;
+    bitindex = 0;
+
+    return I_get_bit_alloc(h, balloc);
+}
+
+
+
+int
+check_l1(long pos, unsigned long h, unsigned char *b, int blen, int flen)
+{
+    int balloc[2*MPEG_SBLIMIT];
+    int nballoc, i, nsf, samlen, sf2, j;
+
+    nballoc = get_l1_bit_alloc(balloc, h, b, blen);
+
+    sf2 = MPEG_JSBOUND(h)*2;
+    if (sf2 > nballoc) /* single */
+	sf2 = nballoc;
+    
+    samlen = nsf = 0;
+    for (i=0; i<sf2; i++)
+	if (balloc[i]) {
+	    nsf++;
+	    samlen += balloc[i]+1;
+	}
+    for (i=sf2; i<nballoc; i++)
+	if (balloc[i]) {
+	    nsf += 2;
+	    samlen += balloc[i]+1;
+	}
+
+#if 0
+    out(pos, "debug: %d*12+%d*6+%d*4=%d/%d",
+	samlen, nsf, nballoc, samlen*12+nsf*6+nballoc*4,
+	(flen-4-MPEG_CRC(h))*8);
+#endif
+
+    return (samlen*MPEG_SCALE_BLOCK+nsf*6+4*nballoc+7)/8 + 4+MPEG_CRC(h)*2;
+}
+
+
+
+static void
+warn_short_frame(long l, int dlen, int flen, int blen, int eof)
+{
+    if (dlen > blen) {
+	if (eof && (output & OUT_LFRAME_SHORT))
+	    out(l, "short last frame %d of %d bytes (%d+%d=%d missing)",
+		blen, flen, dlen-blen, flen-dlen, flen-blen);
+	else if (!eof && (output & OUT_FRAME_SHORT))
+	    out(l, "short frame %d of %d bytes (%d+%d=%d missing)",
+		blen, flen, dlen-blen, flen-dlen, flen-blen);
+    }
+    else if (blen == dlen) {
+	if (eof && (output & OUT_LFRAME_PADDING))
+	    out(l, "padding missing from last frame (%d bytes)", flen-dlen);
+	else if (!eof && (output & OUT_FRAME_PADDING))
+	    out(l, "padding missing from frame (%d bytes)", flen-dlen);
+    }
+    else {
+	if (eof && (output & OUT_LFRAME_PADDING))
+	    out(l, "padding missing from frame (%d of %d bytes)",
+		flen-blen, flen-dlen);
+	else if (!eof && (output & OUT_FRAME_PADDING))
+	    out(l, "padding missing from last frame (%d of %d bytes)",
+		flen-blen, flen-dlen);
+    }
 }
