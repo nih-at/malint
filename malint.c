@@ -39,6 +39,7 @@ extern int _mp3_bit_tab[2][16][3];
 int table[2048];
 
 char *prg;
+int output;
 
 /*
 #define GET_LONG(x)	((((unsigned long)((x)[0]))<<24) \
@@ -59,6 +60,23 @@ char *prg;
 #define IS_ID3v2(h)	(((h)&0xffffff00) == (('I'<<24)|('D'<<16)|('3'<<8)))
 #define IS_ID3(h)	(IS_ID3v1(h) || IS_ID3v2(h))
 #define IS_VALID(h)	(IS_MPEG(h) || IS_ID3(h))
+
+#define OUT_TAG			0x0001
+#define OUT_TAG_CONTENTS	0x0002
+#define OUT_TAG_SHORT		0x2000
+#define OUT_HEAD_1ST		0x0004
+#define OUT_HEAD_1STONLY	0x4000
+#define OUT_HEAD_CHANGE		0x0008
+#define OUT_HEAD_ILLEGAL	0x0010
+#define OUT_RESYNC_SKIP		0x0020
+#define OUT_RESYNC_BAILOUT	0x0040
+#define OUT_CRC_ERROR		0x0080
+#define OUT_BITR_OVERFLOW	0x0100
+#define OUT_BITR_FRAME_OVER	0x0200
+#define OUT_BITR_GAP		0x0400
+#define OUT_LFRAME_SHORT	0x0800
+#define OUT_LFRAME_PADDING	0x1000
+
 
 static void crc_init(void);
 static void crc_update(int *crc, unsigned char b);
@@ -88,6 +106,8 @@ main(int argc, char **argv)
 
     build_length_table(table);
     crc_init();
+
+    output = 0xffff & (~OUT_HEAD_1STONLY);
 
     ret = 0;
     if (argc == 1)
@@ -126,7 +146,8 @@ process_file(FILE *f, char *fname)
 	if (fread(b, 128, 1, f) == 1) {
 	    if (strncmp(b, "TAG", 3) == 0) {
 		len -= 128;
-		parse_tag_v1(len, b);
+		if (output & OUT_TAG)
+		    parse_tag_v1(len, b);
 	    }
 	}
 	if (fseek(f, 0, SEEK_SET) < 0) {
@@ -148,7 +169,8 @@ process_file(FILE *f, char *fname)
 	if (IS_SYNC(h)) {
 	    j = table[(h&0x000fffe0)>>9];
 	    if (j == 0) {
-		out(l, "illegal header 0x%lx (%s)", h, mem2asc(b, 4));
+		if (output & OUT_HEAD_ILLEGAL)
+		    out(l, "illegal header 0x%lx (%s)", h, mem2asc(b, 4));
 		if (resync(&l, &h, f) < 0)
 		    break;
 		else
@@ -158,34 +180,43 @@ process_file(FILE *f, char *fname)
 	else {
 	    if (IS_ID3v1(h)) {
 		if (fread(b+4, 124, 1, f) != 1) {
-		    out(l, "ID3v1 tag (in middle of song)");
-		    printf("    short tag\n");
+		    if (output & OUT_TAG_SHORT) {
+			out(l, "ID3v1 tag (in middle of song)");
+			printf("    short tag\n");
+		    }
 		    break;
 		}
 		else
-		    parse_tag_v1(l, b);
+		    if (output & OUT_TAG)
+			parse_tag_v1(l, b);
 		l += 128;
 		continue;
 	    }
 	    else if (IS_ID3v2(h)) {
 		if (fread(b+4, 6, 1, f) != 1) {
-		    out(l, "ID3v2.%c", (h&0xff)+'0');
-		    printf("    short header\n");
+		    if (output & OUT_TAG_SHORT) {
+			out(l, "ID3v2.%c", (h&0xff)+'0');
+			printf("    short header\n");
+		    }
 		    break;
 		}
 		j = GET_ID3LEN(b+6);
 		if (fread(b+10, j, 1, f) != 1) {
-		    out(l, "ID3v2.%c", (h&0xff)+'0');
-		    printf("    short tag\n");
+		    if (output & OUT_TAG_SHORT) {
+			out(l, "ID3v2.%c", (h&0xff)+'0');
+			printf("    short tag\n");
+		    }
 		    break;
 		}
-		parse_tag_v2(l, b, j);
+		if (output & OUT_TAG)
+		    parse_tag_v2(l, b, j);
 		l += j;
 		continue;
 	    }
 	    else {
 		/* no sync */
-		out(l, "illegal header 0x%lx (%s)", h, mem2asc(b, 4));
+		if (output & OUT_HEAD_ILLEGAL)
+		    out(l, "illegal header 0x%lx (%s)", h, mem2asc(b, 4));
 		if (resync(&l, &h, f) < 0)
 		    break;
 		else
@@ -198,9 +229,12 @@ process_file(FILE *f, char *fname)
 		n = len-l;
 	}
 
-	if (h_old == 0)
+	if (h_old == 0 && (output & OUT_HEAD_1ST)) {
 	    print_header(l, h);
-	else {
+	    if (output & OUT_HEAD_1STONLY)
+		break;
+	}
+	else if (output & OUT_HEAD_CHANGE) {
 	    /* XXX: check invariants */
 	    /* ignores padding, mode ext. */
 	    if ((h_old & 0xfffffddf) != (h & 0xfffffddf))
@@ -209,7 +243,7 @@ process_file(FILE *f, char *fname)
 	}
 	h_old = h; 
 
-	if (MPEG_CRC(h)) {
+	if ((output & OUT_CRC_ERROR) && MPEG_CRC(h)) {
 	    crc_c = crc_frame(h, b, j);
 	    crc_f = GET_SHORT(b+4);
 
@@ -217,10 +251,13 @@ process_file(FILE *f, char *fname)
 		out(l, "CRC error (calc:%04x != file:%04x)", crc_c, crc_f);
 	}
 
-	if (MPEG_LAYER(h) == 3) {
+	if ((output & (OUT_BITR_OVERFLOW|OUT_BITR_FRAME_OVER
+		       |OUT_BITR_GAP|OUT_LFRAME_SHORT
+		       |OUT_LFRAME_PADDING))
+	    && MPEG_LAYER(h) == 3) {
 	    check_l3bitres(l, h, b, n, j, &bitres);
 	}
-	else if (n < j) {
+	else if (n < j && (output & OUT_LFRAME_SHORT)) {
 	    out(l, "short last frame: %d of %d bytes (%d missing)",
 		n, j, j-n);
 	    break;
@@ -257,6 +294,9 @@ parse_tag_v2(long pos, unsigned char *data, int len)
     int i;
 
     out(pos, "ID3v2.%c.%c tag", data[3]+'0', data[4]+'0');
+
+    if (!(output & OUT_TAG_CONTENTS))
+	return;
 
     if (data[5]&0x80) {
 	printf("   unsynchronization not supported\n");
@@ -367,6 +407,9 @@ parse_tag_v1(long pos, char *data)
     v11 = data[126] && data[125] == 0;
 
     out(pos, "ID3v1%s tag", v11 ? ".1" : "");
+
+    if (!(output & OUT_TAG_CONTENTS))
+	return;
 
     for (i=0; field[i].name; i++) {
 	len = field_len(data+field[i].start, field[i].len);
@@ -559,29 +602,32 @@ check_l3bitres(long pos, unsigned long h, unsigned char *b, int blen,
     if (next_bitres > max_back)
 	next_bitres = max_back;
 
-    if (back > *bitresp)
+    if (back > *bitresp && (output & OUT_BITR_OVERFLOW))
 	out(pos, "main_data_begin overflows bit reservoir (%d > %d)",
 	    back, *bitresp);
     
-    if (this_len > flen)
+    if (this_len > flen && (output & OUT_BITR_FRAME_OVER))
 	out(pos, "frame data overflows frame (%d > %d)",
 	    this_len, flen);
 
     if (back != max_back && back != 0 && back < *bitresp
-	&& next_bitres < max_back)
+	&& next_bitres < max_back && (output & OUT_BITR_GAP))
 	out(pos, "gap in bit stream (%d < %d)", back, *bitresp);
 
     if (blen != flen) {
 	if (this_len > blen) {
-	    out(pos, "short last frame %d of %d bytes (%d+%d=%d missing)",
-		blen, flen, this_len-blen, flen-this_len, flen-blen);
+	    if (output & OUT_LFRAME_SHORT)
+		out(pos, "short last frame %d of %d bytes (%d+%d=%d missing)",
+		    blen, flen, this_len-blen, flen-this_len, flen-blen);
 	}
-	else if (blen == this_len)
-	    out(pos, "padding missing from last frame (%d bytes)",
-		flen-this_len);
-	else
-	    out(pos, "padding missing from last frame (%d of %d bytes)",
-		flen-blen, flen-this_len);
+	else if (output & OUT_LFRAME_PADDING) {
+	    if (blen == this_len)
+		out(pos, "padding missing from last frame (%d bytes)",
+		    flen-this_len);
+	    else
+		out(pos, "padding missing from last frame (%d of %d bytes)",
+		    flen-blen, flen-this_len);
+	}
     }
 
 #if 0
@@ -631,13 +677,15 @@ resync(long *lp, unsigned long *hp, FILE *f)
     for (try=1; (c=getc(f))!=EOF && try<MAX_SKIP; try++) {
 	h = (h<<8)|(c&0xff);
 	if (IS_VALID(h)) {
-	    out(l, "skipping %d bytes", try);
+	    if (output & OUT_RESYNC_SKIP)
+		out(l, "skipping %d bytes", try);
 	    *hp = h;
 	    *lp = l+try;
 	    return 0;	    
 	}
     }
 
-    out(l, "no sync found in 64k, bailing out");
+    if (output & OUT_RESYNC_BAILOUT)
+	out(l, "no sync found in 64k, bailing out");
     return -1;
 }
