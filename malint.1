@@ -1,4 +1,4 @@
-.\"
+.\" $NiH$
 .Dd August 17, 2000
 .Dt MALINT 1
 .Os
@@ -16,15 +16,14 @@ The
 utility parses and validates the MPEG audio streams named in the file
 arguments (or standard input if none are given) and prints information
 about the streams and any format violations it finds.
-
+.Pp
 The output for each file is grouped under a line with that file's
 name.  The diagnostic and informative messages are preceded with the
 byte offset they pertain to.
-.Pp
 .Ss Options
 For options that specify what test should be performed, a lower case
 letter turns the test on, and an upper case letter turns it off.  For
-long options, prepend 
+long options, prepend
 .Ar no-
 to turn them off.
 .Pp
@@ -67,7 +66,7 @@ Display only info (bit rate, length, tags at beginning and end), do
 not parse whole file.
 .It Fl N
 .It Fl -resync-count Ar MIN
-If the stream gets out of sync, require at least 
+If the stream gets out of sync, require at least
 .Ar MIN
 consecutive frames to accept resync.
 .It Fl p
@@ -92,7 +91,6 @@ their position and version is shown.
 .It Fl -version
 Display version information.
 .El
-.Pp
 .Ss Error and warning messages
 .Bl -diag
 .It CRC error (calc:XXXX != file:YYYY)
@@ -173,10 +171,10 @@ Dieter Baron <dillo@giga.or.at>
 .Sh BUGS
 VBR only works if the VBR tag is at the beginning of the stream
 (possibly after an ID3 tag) and spans to the end of the stream.
-
+.Pp
 Large ID3v2 tags (>64k) or ID3v2 tags with unsynchronization are not
 handled properly.
-
+.Pp
 Layer 2 CRC calculation is not performed.
-
+.Pp
 Validation of the huffman data in layer 3 streams is not performed.
