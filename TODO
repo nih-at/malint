@@ -3,6 +3,7 @@
 + do not try to read directories
 + documentation
 + add missing messages to man page
+! bitres handling in short frame
 - option to output total play length (of all files)
 - command line options to select checks to perform (begun)
 - WAV haeder detection
