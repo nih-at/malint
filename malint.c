@@ -258,6 +258,7 @@ process_file(FILE *f, char *fname)
 		eof = 1;
 	    if (!IS_VALID(h_next)) {
 		lresync = l;
+		h_next = h;
 		if (resync(&lresync, &h_next, ib, 1) >= 0)
 		    n = ((lresync-l) < flen ? (lresync-l) : flen);
 		if (IS_ID3v1(h_next)) {
@@ -649,7 +650,7 @@ resync(long *lp, unsigned long *hp, struct inbuf *ib, int inframe)
     for (try=1;
 	 (c=inbuf_getc(l+try+3, ib))>=0 && try<(inframe ? 2000 : MAX_SKIP);
 	 try++) {
-	h = (h<<8)|(c&0xff);
+	h = ((h<<8)|(c&0xff)) & 0xffffffff;
 	if (IS_VALID(h)) {
 	    if (IS_SYNC(h)) {
 		inbuf_keep(l+try, ib);
