@@ -1,5 +1,5 @@
-.\" $NiH$
-.Dd August 17, 2000
+.\" $NiH: malint.1,v 1.5 2002/04/17 18:40:24 wiz Exp $
+.Dd November 4, 2004
 .Dt MALINT 1
 .Os
 .Sh NAME
@@ -172,8 +172,7 @@ Dieter Baron <dillo@giga.or.at>
 VBR only works if the VBR tag is at the beginning of the stream
 (possibly after an ID3 tag) and spans to the end of the stream.
 .Pp
-Large ID3v2 tags (>64k) or ID3v2 tags with unsynchronization are not
-handled properly.
+ID3v2 tags with unsynchronization are not handled properly.
 .Pp
 Layer 2 CRC calculation is not performed.
 .Pp
