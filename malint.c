@@ -633,7 +633,7 @@ check_l3(long pos, unsigned long h, unsigned char *b, int blen,
 int 
 get_sideinfo(struct sideinfo *si, unsigned long h, unsigned char *b, int blen)
 {
-    int ms_stereo, stereo, sfreq;
+    int ms_stereo, stereo;
 
     wordpointer = b + 4 + MPEG_CRC(h)*2;
     bitindex = 0;
@@ -645,9 +645,11 @@ get_sideinfo(struct sideinfo *si, unsigned long h, unsigned char *b, int blen)
     stereo = (MPEG_MODE(h) == MPEG_MODE_SINGLE ? 1 : 2);
 
     if (MPEG_VERSION(h) == 1)
-	return III_get_side_info_1(si, stereo, ms_stereo, sfreq, 0);
+	return III_get_side_info_1(si, stereo, ms_stereo,
+				   MPEG_SAMPFREQ_R(h), 0);
     else 
-	return III_get_side_info_2(si, stereo, ms_stereo, sfreq, 0);
+	return III_get_side_info_2(si, stereo, ms_stereo,
+				   MPEG_SAMPFREQ_R(h), 0);
 }
     
 

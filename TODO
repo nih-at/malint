@@ -1,6 +1,5 @@
 + release
 + add copyright comments to mpg123.[ch], crc.c
-+ configure: test for uncommon functions, add replacements (which?)
 + command line options to select checks to perform (begun)
 + better handling of bit reservoir when skipping (and with tags in middle)
 - skipping 1 byte (not bytes)

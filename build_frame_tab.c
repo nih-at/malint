@@ -22,6 +22,8 @@
 
 
 
+#include <string.h>
+
 #include "mpeg.h"
 
 short _mp3_flen_tab[4096];
