@@ -12,7 +12,7 @@ struct inbuf {
     int allocsize;	/* allocation size of buffer */
     long first, last;	/* first, last valid byte in buffer (file position) */
     long keep;		/* earliest byte to keep */
-    long okeep[INBUF_MAX_KEEP]	/* stack of keep values */
+    long okeep[INBUF_MAX_KEEP];	/* stack of keep values */
     int nkeep;		/* number of keeps on stack */
     long length;	/* logical length of file */
     int eof;		/* physical EOF reached */

@@ -23,7 +23,7 @@ inbuf_new(FILE *f, long length)
     }
 
     inb->f = f;
-    inb->cur = inb->first = inb->last = 0;
+    inb->first = inb->last = 0;
     inb->keep = -1;
     inb->nkeep = 0;
     inb->length = length;
@@ -201,7 +201,7 @@ inbuf_copy(unsigned char **b, long pos, long len, struct inbuf *inb)
     }
 
     *b = inb->b + (pos%inb->bsize);
-    inb_unkeep(inb);
+    inbuf_unkeep(inb);
     return len;
 }
 
