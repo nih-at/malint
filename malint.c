@@ -184,11 +184,6 @@ process_file(FILE *f, char *fname)
 	    n = fread(b+4, 1, j-4, f) + 4;
 	    if (len >= 0 && l+n > len)
 		n = len-l;
-	    if (n < j) {
-		out(l, "short last frame: %d of %d bytes (%d missing)",
-		    n, j, j-n);
-		break;
-	    }
 	}
 	/* read complete frame */
 
@@ -211,11 +206,14 @@ process_file(FILE *f, char *fname)
 		out(l, "CRC error (calc:%04x != file:%04x)", crc_c, crc_f);
 	}
 
-#if 0
 	if (MPEG_LAYER(h) == 3) {
-	    check_l3bitres(l, h, b, j, j, &bitres);
+	    check_l3bitres(l, h, b, n, j, &bitres);
 	}
-#endif
+	else if (n < j) {
+	    out(l, "short last frame: %d of %d bytes (%d missing)",
+		n, j, j-n);
+	    break;
+	}
 
 	l += j;
     }
@@ -522,11 +520,12 @@ check_l3bitres(long pos, unsigned long h, unsigned char *b, int blen,
     struct sideinfo si;
 
     unsigned char *sip;
-    int hlen, back, dlen;
+    int hlen, back, dlen, this_len, next_bitres, max_back;
 
     hlen = (4 + MPEG_CRC(h)*2
 	    + (MPEG_VERSION(h)==2 ? (MPEG_MODE(h) == MPEG_MODE_SINGLE ? 9 : 17)
 	       : (MPEG_MODE(h) == MPEG_MODE_SINGLE ? 17 : 32)));
+    max_back = MPEG_VERSION(h) == 1 ? 511 : 255;
 
     if (get_sideinfo(&si, h, b, blen) < 0) {
 	out(pos, "cannot parse sideinfo");
@@ -534,25 +533,52 @@ check_l3bitres(long pos, unsigned long h, unsigned char *b, int blen,
     }
 	
     back = si.main_data_begin;
-    dlen = get_frame_data_len(h, &si);
-    
+    if (MPEG_VERSION(h) == 1)
+	dlen = (si.ch[0].gr[0].part2_3_length+si.ch[0].gr[1].part2_3_length
+		+ ((MPEG_MODE(h) == MPEG_MODE_SINGLE) ? 0
+		   : (si.ch[1].gr[0].part2_3_length
+		      +si.ch[1].gr[1].part2_3_length)));
+    else
+	dlen = (si.ch[0].gr[0].part2_3_length
+		+ ((MPEG_MODE(h) == MPEG_MODE_SINGLE) ? 0
+		   : si.ch[1].gr[0].part2_3_length));
+    dlen = (dlen+7)/8;
+    this_len = (dlen < back) ? hlen : hlen+dlen-back;
+    next_bitres = flen-hlen-dlen+back;
+    if (next_bitres > max_back)
+	next_bitres = max_back;
+
     if (back > *bitresp)
 	out(pos, "main_data_begin overflows bit reservoir (%d > %d)",
 	    back, *bitresp);
     
-    if (dlen-back > flen-hlen)
+    if (this_len > flen)
 	out(pos, "frame data overflows frame (%d > %d)",
-	    dlen-back, flen-hlen);
+	    this_len, flen);
 
-    if (back != 511 && back != 0 && back < *bitresp
-	&& flen-hlen-dlen+back < 511)
+    if (back != max_back && back != 0 && back < *bitresp
+	&& next_bitres < max_back)
 	out(pos, "gap in bit stream (%d < %d)", back, *bitresp);
 
-    out(pos, "debug: bitres=%d, back=%d, dlen=%d\n", *bitresp, back, dlen);
+    if (blen != flen) {
+	if (this_len > blen) {
+	    out(pos, "short last frame %d of %d bytes (%d+%d=%d missing)",
+		blen, flen, this_len-blen, flen-this_len, flen-blen);
+	}
+	else if (blen == this_len)
+	    out(pos, "padding missing from last frame (%d bytes)",
+		flen-this_len);
+	else
+	    out(pos, "padding missing from last frame (%d of %d bytes)",
+		flen-blen, flen-this_len);
+    }
 
-    *bitresp = flen-hlen-dlen+back;
-    if (*bitresp > 511)
-	*bitresp = 511;
+#if 0
+    out(pos, "debug: bitres=%d, back=%d, dlen=%d, this_len=%d, flen=%d\n",
+	*bitresp, back, dlen, this_len, flen);
+#endif
+
+    *bitresp = next_bitres;
 }
 
 
