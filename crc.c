@@ -1,6 +1,11 @@
 /*
   crc -- MPEG crc functions
+  Copyright (C) 1998 by Johannes Overmann
   Copyright (C) 2000 Dieter Baron
+
+  The crc implementation was taken from mp3check, adapted for use in
+  malint by Dieter Baron.
+  The original author can be contacted at <overmann@iname.com>
 
   This file is part of malint, an MPEG Audio stream validator.
   The author can be contacted at <dillo@giga.or.at>
@@ -17,8 +22,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
-*/
+  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.  */
 
 
 

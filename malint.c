@@ -47,31 +47,36 @@ For more information about these matters, see the files named COPYING.\n";
 static char help_head[] = "MPEG Audio lint (" PACKAGE ") " VERSION
 " by Dieter Baron <dillo@giga.or.at>\n\n";
 
-#define OPTIONS	"hVIEcCpPgGdDN:"
+#define OPTIONS	"hVIEcCpPgGdDN:tTfF"
 
 #define OP_NOTC	256
 #define OP_TC	257
 
 struct option options[] = {
-    { "help",            0, 0, 'h'     },
-    { "version",         0, 0, 'V'     },
-    { "fast-info",       0, 0, 'I'     },
-    { "error",           0, 0, 'E'     },
-    { "no-crc",          0, 0, 'C'     },
-    { "crc",             0, 0, 'c'     },
-    { "padding",         0, 0, 'p'     },
-    { "no-padding",      0, 0, 'P'     },
-    { "gap",             0, 0, 'g'     },
-    { "no-gap",          0, 0, 'G'     },
-    { "duration",        0, 0, 'd'     },
-    { "no-duration",     0, 0, 'D'     },
-    { "resync-count",    1, 0, 'N'     },
-    { "no-tag-contents", 0, 0, OP_NOTC },
-    { "tag-contents",    0, 0, OP_TC   },
-    { NULL,              0, 0, 0       }
+    { "help",             0, 0, 'h'     },
+    { "version",          0, 0, 'V'     },
+    { "fast-info",        0, 0, 'I'     },
+    { "error",            0, 0, 'E'     },
+    { "no-crc",           0, 0, 'C'     },
+    { "crc",              0, 0, 'c'     },
+    { "padding",          0, 0, 'p'     },
+    { "no-padding",       0, 0, 'P'     },
+    { "gap",              0, 0, 'g'     },
+    { "no-gap",           0, 0, 'G'     },
+    { "duration",         0, 0, 'd'     },
+    { "no-duration",      0, 0, 'D'     },
+    { "resync-count",     1, 0, 'N'     },
+    { "tag-contents",     0, 0, OP_TC   },
+    { "no-tag-contents",  0, 0, OP_NOTC },
+    { "tag",              0, 0, 't'     },
+    { "no-tag",           0, 0, 'T',    },
+    { "header-change",    0, 0, 'f',    },
+    { "no-header-change", 0, 0, 'F',    },
+    { NULL,               0, 0, 0       }
 };
 
-static char usage[] = "usage: %s [-hV] [-N MIN] [-IEcCpPgGdD] [FILE ...]\n";
+static char usage[] =
+         "usage: %s [-hV] [-N MIN] [-IEcCpPgGdDtTfF] [FILE ...]\n";
 
 static char help_tail[] = "\n\
   -h, --help               display this help message\n\
@@ -84,8 +89,12 @@ static char help_tail[] = "\n\
   -P, --no-padding         do not check for missing padding in last frame\n\
   -g, --gap                check for unused bytes in bit reservoir\n\
   -G, --no-gap             do not check for unused bytes in bit reservoir\n\
+  -f, --header-change      display changes in frame header fields\n\
+  -F, --no-header-change   do not display changes in frame header fields\n\
   -d, --duration           display duration of song\n\
   -D, --no-duration        do not display duration of song\n\
+  -t, --tag                display ID3 tags\n\
+  -T, --no-tag             do not display ID3 tags\n\
       --tag-contents       display contents of ID3 tags\n\
       --no-tag-contents    do not display contents of ID3 tags\n\
   -N, --resync-count N     require at least N frames to accept resync\n\
@@ -106,7 +115,7 @@ int resync(long *lp, unsigned long *hp, struct inbuf *ib,
 
 int check_l1(long pos, unsigned long h, unsigned char *b, int blen, int flen);
 int check_l3(long pos, unsigned long h, unsigned char *b, int blen,
-	     int flen, int *bitresp);
+	     int flen, int *bitresp, int taginbitres);
 int get_l1_bit_alloc(int *balloc, unsigned long h,
 			 unsigned char *b, int blen);
 static void warn_short_frame(long l, int dlen, int flen, int blen, int eof);
@@ -175,6 +184,18 @@ main(int argc, char **argv)
 	case OP_NOTC:
 	    output &= ~OUT_TAG_CONTENTS;
 	    break;
+	case 't':
+	    output |= OUT_TAG;
+	    break;
+	case 'T':
+	    output &= ~OUT_TAG;
+	    break;
+	case 'f':
+	    output |= OUT_HEAD_CHANGE;
+	    break;
+	case 'F':
+	    output &= ~OUT_HEAD_CHANGE;
+	    break;
 
 	case 'N':
 	    min_consec = atoi(optarg);
@@ -224,7 +245,7 @@ process_file(FILE *f, char *fname)
     struct inbuf *ib;
     int endtag_found;
     int dlen, flen, n, crc_f, crc_c, i;
-    int bitres, frlen, frback, eof;
+    int taginbitres, bitres, frlen, frback, eof;
     long l, lresync, len, nframes, bitr;
     unsigned long h, h_old, h_next, h_change_mask;
     unsigned char b[130], *p;
@@ -256,14 +277,13 @@ process_file(FILE *f, char *fname)
 
     vbr = NULL;
     bitr = nframes = 0;
-    bitres = 0;
+    taginbitres = bitres = 0;
     l = 0;
     h_old = 0;
     h_change_mask = 0xfffffdcf;
     eof = 0;
 
     while (inbuf_getlong(&h, l, ib) >= 0) {
-    resynced:
 	if (IS_MPEG(h)) {
 	    n = flen = MPEG_FRLEN(h);
 	    inbuf_keep(l, ib);
@@ -345,9 +365,11 @@ process_file(FILE *f, char *fname)
 			bitres = 0;
 			break;
 		    case 3:
-			dlen = check_l3(l, h, p, n, flen, &bitres);
+			dlen = check_l3(l, h, p, n, flen,
+					&bitres, taginbitres);
 			break;
 		    }
+		    taginbitres = 0;
 
 		    if (dlen > flen && (output & OUT_BITR_FRAME_OVER))
 			out(l, "frame data overflows frame (%d > %d)",
@@ -372,6 +394,7 @@ process_file(FILE *f, char *fname)
 	}
 	else {
 	    if (IS_ID3v1(h)) {
+		taginbitres = 1;
 		if (inbuf_copy(&p, l, 128, ib) != 128) {
 		    if (output & OUT_TAG_SHORT) {
 			out(l, "ID3v1 tag");
@@ -389,6 +412,7 @@ process_file(FILE *f, char *fname)
 		continue;
 	    }
 	    else if (IS_ID3v2(h)) {
+		taginbitres = 1;
 		inbuf_keep(l, ib);
 		if (inbuf_getc(l+10, ib) < 0) {
 		    if (output & OUT_TAG_SHORT) {
@@ -416,10 +440,10 @@ process_file(FILE *f, char *fname)
 		/* no sync */
 		if (output & OUT_HEAD_ILLEGAL)
 		    out(l, "illegal header 0x%08lx (%s)", h, ulong2asc(h));
+		lresync = l;
 		if (resync(&l, &h, ib, 0, 0) < 0)
 		    break;
-		else
-		    goto resynced;
+		bitres += l-lresync;
 	    }
 	}
     }
@@ -573,7 +597,7 @@ print_header(long pos, unsigned long h, int vbrkbps)
 
 int
 check_l3(long pos, unsigned long h, unsigned char *b, int blen,
-	 int flen, int *bitresp)
+	 int flen, int *bitresp, int taginbitres)
 {
     struct sideinfo si;
 
@@ -609,6 +633,9 @@ check_l3(long pos, unsigned long h, unsigned char *b, int blen,
     next_bitres = flen-hlen-dlen+back;
     if (next_bitres > max_back)
 	next_bitres = max_back;
+
+    if (back && taginbitres && (output & OUT_BITR_TAGIN))
+	out(pos, "bit resrvoir spans across ID3 tag");
 
     if (back > *bitresp && (output & OUT_BITR_OVERFLOW))
 	out(pos, "main_data_begin overflows bit reservoir (%d > %d)",

@@ -1,3 +1,33 @@
+/*
+  mpg123.c -- mpeg structure parsing routines
+
+  Copyright (C) 1995,1996,1997 by Michael Hipp.
+  Changes Copyright (C) 2000 Dieter Baron
+
+  The routines in this file were taken from xmms's mpg123 lib, adapted
+  for use in malint by Dieter Baron.
+  The original author can be contacted at <hippm@informatik.uni-tuebingen.de>
+
+  This file is part of malint, an MPEG Audio stream validator.
+  The author can be contacted at <dillo@giga.or.at>
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+*/
+
+
+
 #include "mpeg.h"
 #include "mpg123.h"
 

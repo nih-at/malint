@@ -47,6 +47,9 @@ parse_tag_v2(long pos, unsigned char *data, int len)
     char *p, *end;
     int i;
 
+    if (!(output & OUT_TAG))
+	return;
+
     out(pos, "ID3v2.%c.%c tag", data[3]+'0', data[4]+'0');
 
     if (!(output & OUT_TAG_CONTENTS))
@@ -157,6 +160,9 @@ parse_tag_v1(long pos, char *data, int in_middle)
     };
 
     int v11, i, len;
+
+    if (!(output & OUT_TAG))
+	return;
 
     v11 = data[126] && data[125] == 0;
 
