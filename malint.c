@@ -643,7 +643,7 @@ get_sideinfo(struct sideinfo *si, unsigned long h, unsigned char *b, int blen)
 int
 resync(long *lp, unsigned long *hp, struct inbuf *ib, int inframe)
 {
-    unsigned long h;
+    unsigned long h, h_next;
     long l, try, l2;
     int c, j, i, valid;
 
@@ -654,6 +654,7 @@ resync(long *lp, unsigned long *hp, struct inbuf *ib, int inframe)
 	 (c=inbuf_getc(l+try+3, ib))>=0 && try<(inframe ? 2000 : MAX_SKIP);
 	 try++) {
 	h = ((h<<8)|(c&0xff)) & 0xffffffff;
+
 	if (IS_VALID(h)) {
 	    if (IS_SYNC(h)) {
 		inbuf_keep(l+try, ib);
@@ -661,16 +662,16 @@ resync(long *lp, unsigned long *hp, struct inbuf *ib, int inframe)
 		l2 = l+try;
 		for (i=0; i<min_consec; i++) {
 		    l2 += MPEG_FRLEN(h);
-		    if ((c=inbuf_getlong(&h, l2, ib)) < 0) {
+		    if ((c=inbuf_getlong(&h_next, l2, ib)) < 0) {
 			if (inframe)
 			    valid = 0;
 			break;
 		    }
-		    if (!IS_VALID(h)) {
+		    if (!IS_VALID(h_next)) {
 			valid = 0;
 			break;
 		    }
-		    else if (!IS_SYNC(h))
+		    else if (!IS_SYNC(h_next))
 			break;
 		}
 		inbuf_unkeep(ib);
