@@ -160,9 +160,9 @@ parse_tag_v1(long pos, char *data, int in_middle)
 
     v11 = data[126] && data[125] == 0;
 
-    out(pos, "ID3v1%s tag %s",
+    out(pos, "ID3v1%s tag%s",
 	v11 ? ".1" : "",
-	in_middle ? "(in middle of file)" : "");
+	in_middle ? " (in middle of file)" : "");
 
     if (!(output & OUT_TAG_CONTENTS))
 	return;
