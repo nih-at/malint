@@ -1,8 +1,10 @@
 #include <errno.h>
+#include <getopt.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
+#include "config.h"
 #include "mpg123.h"
 
 void build_length_table(int *table);
@@ -32,7 +34,47 @@ extern int _mp3_bit_tab[2][16][3];
 #define MPEG_MODE_DUAL		0x2
 #define MPEG_MODE_SINGLE	0x3
 
+
 
+#define PROGRAM "walk_frames"
+
+static char version_out[] = PROGRAM " (" PACKAGE ") " VERSION "\n\
+Copyright (C) 2000 Dieter Baron\n"
+PACKAGE " comes with ABSOLUTELY NO WARRANTY, to the extent permitted by law.\n\
+You may redistribute copies of\n"
+PACKAGE " under the terms of the GNU General Public License.\n\
+For more information about these matters, see the files named COPYING.\n";
+
+static char help_head[] = PROGRAM " (" PACKAGE ") " VERSION
+" by Dieter Baron <dillo@giga.or.at>\n\n";
+
+#define OPTIONS	"hVIEcCpP"
+
+struct option options[] = {
+    { "help",        0, 0, 'h' },
+    { "version",     0, 0, 'V' },
+    { "info-only",   0, 0, 'I' },
+    { "error",       0, 0, 'E' },
+    { "no-crc",      0, 0, 'C' },
+    { "crc",         0, 0, 'c' },
+    { "padding",     0, 0, 'p' },
+    { "no-padding",  0, 0, 'P' },
+    { NULL,          0, 0, 0   }
+};
+
+static char usage[] = "usage: %s [-hV] [-IEcCpP] [FILE ...]\n";
+
+static char help_tail[] = "\n\
+  -h, --help               display this help message\n\
+  -V, --version            display version number\n\
+  -I, --info-only          display tag and first frame header only\n\
+  -E, --error              display only error diagnostics\n\
+  -c, --crc                check CRC (layer 3 only)\n\
+  -C, --no-crc             do not check CRC\n\
+  -p, --padding            check for missing padding in last frame\n\
+  -P, --no-padding         do not check for missing padding in last frame\n\
+\n\
+Report bugs to <dillo@giga.or.at>.\n";
 
 
 
@@ -77,6 +119,11 @@ int output;
 #define OUT_LFRAME_SHORT	0x0800
 #define OUT_LFRAME_PADDING	0x1000
 
+#define OUT_M_ERROR (OUT_TAG_SHORT|OUT_HEAD_CHANGE \
+		     |OUT_HEAD_ILLEGAL|OUT_RESYNC_SKIP|OUT_RESYNC_BAILOUT \
+		     |OUT_CRC_ERROR|OUT_BITR_OVERFLOW|OUT_BITR_FRAME_OVER \
+		     |OUT_LFRAME_SHORT) \
+
 
 static void crc_init(void);
 static void crc_update(int *crc, unsigned char b);
@@ -100,20 +147,56 @@ int
 main(int argc, char **argv)
 {
     FILE *f;
-    int i, ret;
+    int i, ret, c;
 
     prg = argv[0];
 
     build_length_table(table);
     crc_init();
 
-    output = 0xffff & (~OUT_HEAD_1STONLY);
+    output = 0xffff & ~OUT_HEAD_1STONLY;
+
+    opterr = 0;
+    while ((c=getopt_long(argc, argv, OPTIONS, options, 0)) != EOF) {
+	switch (c) {
+	case 'I':
+	    output = OUT_HEAD_1STONLY|OUT_TAG|OUT_TAG_CONTENTS|OUT_HEAD_1ST;
+	    break;
+	case 'E':
+	    output = OUT_M_ERROR;
+	    break;
+	case 'c':
+	    output |= OUT_CRC_ERROR;
+	    break;
+	case 'C':
+	    output &= ~OUT_CRC_ERROR;
+	    break;
+	case 'p':
+	    output |= OUT_LFRAME_PADDING;
+	    break;
+	case 'P':
+	    output &= ~OUT_LFRAME_PADDING;
+	    break;
+
+	case 'V':
+	    fputs(version_out, stdout);
+	    exit(0);
+	case 'h':
+	    fputs(help_head, stdout);
+	    printf(usage, prg);
+	    fputs(help_tail, stdout);
+	    exit(0);
+	case '?':
+	    fprintf(stderr, usage, prg);
+	    exit(1);
+	}
+    }
 
     ret = 0;
-    if (argc == 1)
+    if (optind == argc)
 	process_file(stdin, "stdin");
     else {
-	for (i=1; i<argc; i++) {
+	for (i=optind; i<argc; i++) {
 	    if ((f=fopen(argv[i], "r")) == NULL) {
 		fprintf(stderr, "%s: cannot open file `%s': %s\n",
 			argv[0], argv[i], strerror(errno));
@@ -229,8 +312,9 @@ process_file(FILE *f, char *fname)
 		n = len-l;
 	}
 
-	if (h_old == 0 && (output & OUT_HEAD_1ST)) {
-	    print_header(l, h);
+	if (h_old == 0) {
+	    if (output & OUT_HEAD_1ST)
+		print_header(l, h);
 	    if (output & OUT_HEAD_1STONLY)
 		break;
 	}
