@@ -9,6 +9,8 @@ int process_file(FILE *f, char *fname);
 
 int table[2048];
 
+char *prg;
+
 /*
 #define GET_LONG(x)	((((unsigned long)((x)[0]))<<24) \
                          | (((unsigned long)((x)[1]))<<16) \
@@ -32,6 +34,8 @@ main(int argc, char **argv)
 {
     FILE *f;
     int i, ret;
+
+    prg = argv[0];
 
     build_length_table(table);
 
@@ -60,13 +64,31 @@ int
 process_file(FILE *f, char *fname)
 {
     int j, n;
-    long l;
+    long l, len;
     unsigned long h;
     unsigned char b[8192];
     char *data;
-    
+
+    if (fseek(f, -128, SEEK_END) >= 0) {
+	len = ftell(f);
+	if (fread(b, 128, 1, f) == 1) {
+	    if (strncmp(b, "TAG", 3) == 0) {
+		len -= 128;
+		printf("%s: ID3v1 tag at %ld\n", fname, l);
+		parse_tag_v1(b);
+	    }
+	}
+	if (fseek(f, 0, SEEK_SET) < 0) {
+	    fprintf(stderr, "%s: cannot rewind %s: %s\n",
+		    prg, fname, strerror(errno));
+	    return -1;
+	}
+    }
+    else
+	len = -1;
+
     l = 0;
-    while(fread(b, 4, 1, f) > 0) {
+    while((len < 0 || l < len) && fread(b, 4, 1, f) > 0) {
 	h = GET_LONG(b);
 	
 	if ((h&0xfff00000) == 0xfff00000) {
