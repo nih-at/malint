@@ -1,0 +1,35 @@
+* CRC error (calc:XXXX != file:YYYY)
+
+the crc malint calculated for this frame (XXXX) differs from the crc
+stored in the stream (YYYY)
+
+* frame data overflows frame (N > M)
+
+the length of data in this frame (M, calculated from side-info or
+bit-alloc) is more than the frame can contain (N).
+
+* illegal header XXXXXXXX (AAAA)
+
+XXXXXXXX (AAAA in ASCII) was found where a frame header was expected.
+
+
+
+* MPEG V layer L ...
+
+this stream is MPEG version V, audio layer L (other parameters from
+frame haeder are printed also).  This is also output if header
+parameters change.
+
+* play time: HH:MM:SS (N frames)
+
+play time of this stream is HH:MM:SS.  The stream contains N frames.
+
+* play time: HH:MM:SS (according to vbr tag)
+
+FAST INFO: according to the VBR tag, play time of this stream is HH:MM:SS.
+
+* play time: HH:MM:SS (aproximately)
+
+FAST INFO: based on the assumption that bit rate and sampling
+frequency is constant throughout the stream, play time for this stream
+is HH:MM:SS.
