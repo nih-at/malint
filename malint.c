@@ -3,6 +3,7 @@
 #include <string.h>
 
 void build_length_table(int *table);
+int process_file(FILE *f, char *fname);
 
 
 
@@ -30,80 +31,96 @@ int
 main(int argc, char **argv)
 {
     FILE *f;
-    int i, ret, j, n;
-    long l;
-    unsigned long h;
-    unsigned char b[8192];
-    char *data;
+    int i, ret;
 
     build_length_table(table);
 
     ret = 0;
-    for (i=1; i<argc; i++) {
-	if ((f=fopen(argv[i], "r")) == NULL) {
-	    fprintf(stderr, "%s: cannot open file `%s': %s\n",
-		    argv[0], argv[i], strerror(errno));
-	    ret = 1;
-	    continue;
-	}
-
-	l = 0;
-	while(fread(b, 4, 1, f) > 0) {
-	    h = GET_LONG(b);
-
-	    if ((h&0xfff00000) == 0xfff00000) {
-		/* valid header */
-		data = "last frame";
-		j = table[(h&0x000fffe0)>>9];
+    if (argc == 1)
+	process_file(stdin, "stdin");
+    else {
+	for (i=1; i<argc; i++) {
+	    if ((f=fopen(argv[i], "r")) == NULL) {
+		fprintf(stderr, "%s: cannot open file `%s': %s\n",
+			argv[0], argv[i], strerror(errno));
+		ret = 1;
+		continue;
 	    }
-	    else {
-		if ((h&0xffffff00) == (('T'<<24)|('A'<<16)|('G'<<8))) {
-		    printf("%s: ID3v1 tag at %ld\n",
-			   argv[i], l);
-		    data = "ID3v1 tag";
-		    if (fread(b+4, 124, 1, f) != 1) {
-			printf("    short tag\n");
-			break;
-		    }
-		    parse_tag_v1(b);
-		    j = 0;
-		    l += 128;
-		}
-		else if ((h&0xffffff00) == (('I'<<24)|('D'<<16)|('3'<<8))) {
-		    printf("%s: ID3v2 tag at %ld\n", argv[i], l);
-		    if (fread(b+4, 6, 1, f) != 1) {
-			printf("    short header\n");
-			break;
-		    }
-		    j = GET_ID3LEN(b+6);
-		    if (fread(b+10, j, 1, f) != 1) {
-			printf("    short tag\n");
-			break;
-		    }
-		    parse_tag_v2(b, j);
-		    l += j;
-		    j = 0;
-		}
-		else {
-		    /* not recognized */
-		    printf("%s: illegal header at %ld: 0x%lx\n",
-			   argv[i], l, h);
-		    /* resync? */
-		    break;
-		}
-	    }
-	    if (j>4) {
-		if ((n=fread(b, 1, j-4, f)) != j-4) {
-		    printf("%s: short last frame at %ld: %d of %d bytes\n",
-			   argv[i], l, n+4, j);
-		    break;
-		}
-	    }
-	    l += j;
+	    
+	    process_file(f, argv[i]);
 	}
     }
     
     return ret;
+}
+
+
+
+int
+process_file(FILE *f, char *fname)
+{
+    int j, n;
+    long l;
+    unsigned long h;
+    unsigned char b[8192];
+    char *data;
+    
+    l = 0;
+    while(fread(b, 4, 1, f) > 0) {
+	h = GET_LONG(b);
+	
+	if ((h&0xfff00000) == 0xfff00000) {
+	    /* valid header */
+	    data = "last frame";
+	    j = table[(h&0x000fffe0)>>9];
+	}
+	else {
+	    if ((h&0xffffff00) == (('T'<<24)|('A'<<16)|('G'<<8))) {
+		printf("%s: ID3v1 tag at %ld\n",
+		       fname, l);
+		data = "ID3v1 tag";
+		if (fread(b+4, 124, 1, f) != 1) {
+		    printf("    short tag\n");
+		    break;
+		}
+		parse_tag_v1(b);
+		j = 0;
+		l += 128;
+	    }
+	    else if ((h&0xffffff00) == (('I'<<24)|('D'<<16)|('3'<<8))) {
+		printf("%s: ID3v2 tag at %ld\n", fname, l);
+		if (fread(b+4, 6, 1, f) != 1) {
+		    printf("    short header\n");
+		    break;
+		}
+		j = GET_ID3LEN(b+6);
+		if (fread(b+10, j, 1, f) != 1) {
+		    printf("    short tag\n");
+		    break;
+		}
+		parse_tag_v2(b, j);
+		l += j;
+		j = 0;
+	    }
+	    else {
+		/* not recognized */
+		printf("%s: illegal header at %ld: 0x%lx\n",
+		       fname, l, h);
+		/* resync? */
+		break;
+	    }
+	}
+	if (j>4) {
+	    if ((n=fread(b, 1, j-4, f)) != j-4) {
+		printf("%s: short last frame at %ld: %d of %d bytes\n",
+		       fname, l, n+4, j);
+		break;
+	    }
+	}
+	l += j;
+    }
+
+    return 0;
 }
 
 
