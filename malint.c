@@ -6,7 +6,12 @@
 void build_length_table(int *table);
 int process_file(FILE *f, char *fname);
 
-#define MPEG_CRC	0x00010000
+#define MPEG_VERSION(h)	(2-(((h)&0x00080000)>>19))
+#define MPEG_LAYER(h)	(4-(((h)&0x00060000)>>17))
+#define MPEG_CRC(h)	(!((h)&0x00010000))
+#define MPEG_MODE(h)	(((h)&0x000000c0)>>6)
+
+#define MPEG_MODE_SINGLE	0x3
 
 
 
@@ -23,8 +28,13 @@ char *prg;
 
 #define GET_LONG(x)	(((x)[0]<<24)|((x)[1]<<16)|((x)[2]<<8)|(x)[3])
 #define GET_INT3(x)	(((x)[0]<<16)|((x)[1]<<8)|(x)[2])
+#define GET_SHORT(x)	(((x)[0]<<8)|(x)[1])
 #define GET_ID3LEN(x)	((((x)[0]&0x7f)<<21)|(((x)[1]&0x7f)<<14) \
 			 |(((x)[2]&0x7f)<<7)|((x)[3]&0x7f))
+
+static void crc_init(void);
+static void crc_update(int *crc, unsigned char b);
+static int crc_frame(unsigned long h, unsigned char *data, int len);
 
 void out_start(char *fname);
 void out(long pos, char *fmt, ...);
@@ -44,6 +54,7 @@ main(int argc, char **argv)
     prg = argv[0];
 
     build_length_table(table);
+    crc_init();
 
     ret = 0;
     if (argc == 1)
@@ -69,7 +80,7 @@ main(int argc, char **argv)
 int
 process_file(FILE *f, char *fname)
 {
-    int j, n;
+    int j, n, crc_f, crc_c;
     long l, len;
     unsigned long h;
     unsigned char b[8192];
@@ -141,7 +152,7 @@ process_file(FILE *f, char *fname)
 	    }
 	}
 	if (j>4) {
-	    n = fread(b, 1, j-4, f) + 4;
+	    n = fread(b+4, 1, j-4, f) + 4;
 	    if (len >= 0 && l+n > len)
 		n = len-l;
 	    if (n < j) {
@@ -150,8 +161,16 @@ process_file(FILE *f, char *fname)
 	    }
 	}
 	/* read complete frame */
-	if (h & MPEG_CRC) {
-	    /* calculate crc */
+	if (MPEG_CRC(h)) {
+	    b[0] = (h>>24) & 0xff;
+	    b[1] = (h>>16) & 0xff;
+	    b[2] = (h>>8) & 0xff;
+	    b[3] = (h) & 0xff;
+	    crc_c = crc_frame(h, b, j);
+	    crc_f = GET_SHORT(b+4);
+
+	    if (crc_c != -1 && crc_c != crc_f)
+		out(l, "CRC error (calc:%d != file:%d)", crc_c, crc_f);
 	}
 	l += j;
     }
@@ -324,4 +343,70 @@ out(long pos, char *fmt, ...)
     vprintf(fmt, argp);
     va_end(argp);
     putc('\n', stdout);
+}
+
+
+
+#define MPEG_CRCPOLY	0x18005
+
+static int crc_tab[256];
+
+
+
+static void
+crc_init(void)
+{
+    int i, x, j;
+    
+    for(i=0; i<256; i++) {
+	x = i << 9;
+	for(j=0; j<8; j++, x<<=1)
+	    if (x & 0x10000)
+		x ^= MPEG_CRCPOLY;
+	crc_tab[i] = x >> 1;
+    }
+}
+
+
+
+static void
+crc_update(int *crc, unsigned char b)
+{
+    *crc = crc_tab[(*crc>>8)^b] ^ ((*crc<<8)&0xffff);
+}
+
+
+
+static int
+crc_frame(unsigned long h, unsigned char *data, int len)
+{
+    int i, crc, s;
+
+    if (MPEG_LAYER(h) != 3) {
+	/* mp3check only supports layer 3.  get docu somewhere else */
+	return -1;
+    }
+
+    crc = 0xffff;
+
+    crc_update(&crc, data[2]);
+    crc_update(&crc, data[3]);
+
+    if (MPEG_VERSION(h) == 1) {
+	if (MPEG_MODE(h) == MPEG_MODE_SINGLE)
+	    s = 17;
+	else
+	    s = 32;
+    }
+    else {
+	if (MPEG_MODE(h) == MPEG_MODE_SINGLE)
+	    s = 9;
+	else
+	    s = 17;
+    }
+
+    for(i=0; i < s; i++)
+	crc_update(&crc, data[i+6]);
+    
+    return crc;
 }
