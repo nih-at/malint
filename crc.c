@@ -33,7 +33,7 @@
 
 static int crc_tab[256];
 
-static void crc_update(int *crc, unsigned char b);
+static void crc_update(int *crc, unsigned char *b, int n);
 
 
 
@@ -54,9 +54,12 @@ crc_init(void)
 
 
 static void
-crc_update(int *crc, unsigned char b)
+crc_update(int *crc, unsigned char *b, int n)
 {
-    *crc = crc_tab[(*crc>>8)^b] ^ ((*crc<<8)&0xffff);
+    int i;
+
+    for (i=0; i<n; i++)
+	*crc = crc_tab[(*crc>>8)^b[i]] ^ ((*crc<<8)&0xffff);
 }
 
 
@@ -64,7 +67,7 @@ crc_update(int *crc, unsigned char b)
 int
 crc_frame(unsigned long h, unsigned char *data, int len)
 {
-    int i, crc, n;
+    int crc, n;
 
     switch (MPEG_LAYER(h)) {
     case 1:
@@ -92,12 +95,8 @@ crc_frame(unsigned long h, unsigned char *data, int len)
 
     crc = 0xffff;
 
-    crc_update(&crc, data[2]);
-    crc_update(&crc, data[3]);
-
-    for(i=0; i < n; i++)
-	crc_update(&crc, data[i+6]);
+    crc_update(&crc, data+2, 2);
+    crc_update(&crc, data+6, n);
     
     return crc;
 }
-
