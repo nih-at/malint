@@ -47,25 +47,26 @@ For more information about these matters, see the files named COPYING.\n";
 static char help_head[] = "MPEG Audio lint (" PACKAGE ") " VERSION
 " by Dieter Baron <dillo@giga.or.at>\n\n";
 
-#define OPTIONS	"hVIEcCpPgGdD"
+#define OPTIONS	"hVIEcCpPgGdDN:"
 
 struct option options[] = {
-    { "help",        0, 0, 'h' },
-    { "version",     0, 0, 'V' },
-    { "fast-info",   0, 0, 'I' },
-    { "error",       0, 0, 'E' },
-    { "no-crc",      0, 0, 'C' },
-    { "crc",         0, 0, 'c' },
-    { "padding",     0, 0, 'p' },
-    { "no-padding",  0, 0, 'P' },
-    { "gap",         0, 0, 'g' },
-    { "no-gap",      0, 0, 'G' },
-    { "duration",    0, 0, 'd' },
-    { "no-duration", 0, 0, 'D' },
-    { NULL,          0, 0, 0   }
+    { "help",         0, 0, 'h' },
+    { "version",      0, 0, 'V' },
+    { "fast-info",    0, 0, 'I' },
+    { "error",        0, 0, 'E' },
+    { "no-crc",       0, 0, 'C' },
+    { "crc",          0, 0, 'c' },
+    { "padding",      0, 0, 'p' },
+    { "no-padding",   0, 0, 'P' },
+    { "gap",          0, 0, 'g' },
+    { "no-gap",       0, 0, 'G' },
+    { "duration",     0, 0, 'd' },
+    { "no-duration",  0, 0, 'D' },
+    { "resync-count", 1, 0, 'N' },
+    { NULL,           0, 0, 0   }
 };
 
-static char usage[] = "usage: %s [-hV] [-IEcCpPgGdD] [FILE ...]\n";
+static char usage[] = "usage: %s [-hV] [-N MIN] [-IEcCpPgGdD] [FILE ...]\n";
 
 static char help_tail[] = "\n\
   -h, --help               display this help message\n\
@@ -80,13 +81,15 @@ static char help_tail[] = "\n\
   -G, --no-gap             do not check for unused bytes in bit reservoir\n\
   -d, --duration           display duration of song\n\
   -D, --no-duration        do not display duration of song\n\
+  -N, --resync-count N     require at least N frames to accept resync\n\
 \n\
 Report bugs to <dillo@giga.or.at>.\n";
 
 
 
 char *prg;
-int output;
+int output;		/* bit mask of messages to output */
+int min_consec;		/* number of consecutive headers to accept a resync */
 
 
 
@@ -126,6 +129,7 @@ main(int argc, char **argv)
     crc_init();
 
     output = 0xfffffff & ~OUT_FASTINFO_ONLY;
+    min_consec = 6;
 
     opterr = 0;
     while ((c=getopt_long(argc, argv, OPTIONS, options, 0)) != EOF) {
@@ -162,6 +166,10 @@ main(int argc, char **argv)
 	    output &= ~OUT_PLAYTIME;
 	    break;
 
+	case 'N':
+	    min_consec = atoi(optarg);
+	    break;
+	    
 	case 'V':
 	    fputs(version_out, stdout);
 	    exit(0);
@@ -612,7 +620,6 @@ get_sideinfo(struct sideinfo *si, unsigned long h, unsigned char *b, int blen)
 
 
 #define MAX_SKIP  65536
-#define MIN_CONSEC 6
 
 int
 resync(long *lp, unsigned long *hp, struct inbuf *ib, int inframe)
@@ -624,16 +631,18 @@ resync(long *lp, unsigned long *hp, struct inbuf *ib, int inframe)
     l = *lp;
     h = *hp;
 
-    for (try=1; (c=inbuf_getc(l+try+3, ib))>=0 && try<MAX_SKIP; try++) {
+    for (try=1;
+	 (c=inbuf_getc(l+try+3, ib))>=0 && try<(inframe ? 2000 : MAX_SKIP);
+	 try++) {
 	h = (h<<8)|(c&0xff);
 	if (IS_VALID(h)) {
 	    if (IS_SYNC(h)) {
 		inbuf_keep(l+try, ib);
 		valid = 1;
 		l2 = l+try;
-		for (i=0; i<MIN_CONSEC; i++) {
+		for (i=0; i<min_consec; i++) {
 		    l2 += MPEG_FRLEN(h);
-		    if (inbuf_getlong(&h, l2, ib) < 0) {
+		    if ((c=inbuf_getlong(&h, l2, ib)) < 0) {
 			if (inframe)
 			    valid = 0;
 			break;
@@ -658,12 +667,17 @@ resync(long *lp, unsigned long *hp, struct inbuf *ib, int inframe)
 	}
     }
 
-    if (c < 0) {
+    if (c == -1) {
 	if (!inframe && (output & OUT_RESYNC_SKIP))
 	    out(l, "skipping %d bytes, reaching EOF", try);
     }
+    else if (c == -2) {
+	if (!inframe && (output & OUT_RESYNC_BAILOUT))
+	    out(l, "inbuf overflow after %d bytes, bailing out", try);
+    }
     else if (!inframe && (output & OUT_RESYNC_BAILOUT))
 	out(l, "no sync found in 64k, bailing out");
+    
     return -1;
 }
 

@@ -27,7 +27,7 @@
 
 #include "inbuf.h"
 
-#define BUFSIZE 16384
+#define BUFSIZE 65536
 #define ALLOCADD 4096
 
 
