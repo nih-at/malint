@@ -704,8 +704,9 @@ resync(long *lp, unsigned long *hp, struct inbuf *ib, int inframe, int maxtry)
 		inbuf_keep(l+try, ib);
 		valid = 1;
 		l2 = l+try;
+		h_next = h;
 		for (i=0; i<min_consec; i++) {
-		    l2 += MPEG_FRLEN(h);
+		    l2 += MPEG_FRLEN(h_next);
 		    if ((c=inbuf_getlong(&h_next, l2, ib)) < 0) {
 			if (inframe)
 			    valid = 0;
