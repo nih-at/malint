@@ -403,7 +403,7 @@ process_file(FILE *f, char *fname)
 	    taginbitres = 1;
 	    /* XXX: where to begin resyncing? */
 	    /* inbuf_keep(l, ib); */
-	    l += check_tag_v2(l, h);
+	    l += check_tag_v2(ib, l, h);
 	    continue;
 	}
 	else {
@@ -613,11 +613,7 @@ check_l3(long pos, unsigned long h, unsigned char *b, int blen,
 	&& next_bitres < max_back && (output & OUT_BITR_GAP))
 	out(pos, "gap in bit stream (%d < %d)", back, *bitresp);
 
-#if 0
-    out(pos, "debug: bitres=%d, back=%d, dlen=%d, this_len=%d, flen=%d\n",
-	*bitresp, back, dlen, this_len, flen);
-#endif
-
+    /* XXX: account for short frames */
     *bitresp = next_bitres;
 
     return this_len;
