@@ -33,7 +33,7 @@
 struct vbr *
 vbr_parse(long pos, unsigned char *b, int len)
 {
-    static ltab[] = {
+    static int ltab[] = {
 	 8, 12, 12, 16, 108, 112, 112, 116,
 	12, 16, 16, 20, 112, 116, 116, 120
     };
