@@ -6,11 +6,17 @@
 void build_length_table(int *table);
 int process_file(FILE *f, char *fname);
 
+extern int _mp3_samp_tab[2][4];
+extern int _mp3_bit_tab[2][16][3];
+
 #define MPEG_VERSION(h)	(2-(((h)&0x00080000)>>19))
 #define MPEG_LAYER(h)	(4-(((h)&0x00060000)>>17))
 #define MPEG_CRC(h)	(!((h)&0x00010000))
-#define MPEG_BITRATE(h)	(((h)&0x0000f000)>>12)
-#define MPEG_SAMPFREQ(h) (((h)&0x00000c00)>>10)
+#define MPEG_BITRATE_R(h)  (((h)&0x0000f000)>>12)
+#define MPEG_BITRATE(h)	(_mp3_bit_tab[2-MPEG_VERSION(h)]\
+				     [MPEG_BITRATE_R(h)][MPEG_LAYER(h)-1])
+#define MPEG_SAMPFREQ_R(h) (((h)&0x00000c00)>>10)
+#define MPEG_SAMPFREQ(h) (_mp3_samp_tab[2-MPEG_VERSION(h)][MPEG_SAMPFREQ_R(h)])
 #define MPEG_PADDING(h)	(((h)&0x00000200)>>9)
 #define MPEG_PRIV(h)	(((h)&0x00000100)>>8)
 #define MPEG_MODE(h)	(((h)&0x000000c0)>>6)
@@ -178,6 +184,10 @@ process_file(FILE *f, char *fname)
 	    print_header(l, h);
 	else {
 	    /* XXX: check invariants */
+	    /* ignores padding, mode ext. */
+	    if ((h_old & 0xfffffddf) != (h & 0xfffffddf))
+		print_header(l, h);
+	        /* out(l, "header change: 0x%lx -> 0x%lx", h_old, h); */
 	}
 	h_old = h; 
 
@@ -186,7 +196,7 @@ process_file(FILE *f, char *fname)
 	    crc_f = GET_SHORT(b+4);
 
 	    if (crc_c != -1 && crc_c != crc_f)
-		out(l, "CRC error (calc:%d != file:%d)", crc_c, crc_f);
+		out(l, "CRC error (calc:%04x != file:%04x)", crc_c, crc_f);
 	}
 	l += j;
     }
@@ -456,18 +466,20 @@ void
 print_header(long pos, unsigned long h)
 {
     static char *mode[] = {
-	"stereo", "joint stereo", "dual channel", "single channel"
+	"stereo", "j-stereo", "dual-ch", "mono"
     };
     static char *emph[] = {
 	"no emphasis", "50/15 micro seconds", "", "CCITT J.17"
     };
 
-    out(pos, "MPEG %d layer %d%s, %dbps, %dkHz, %s%s%s, %s", /*", */
+    out(pos, "MPEG %d layer %d%s, %dbps, %dkHz, %s%s (%d)%s%s%s%s",
 	MPEG_VERSION(h), MPEG_LAYER(h),
 	MPEG_CRC(h) ? ", crc" : "",
-	MPEG_BITRATE(h), MPEG_SAMPFREQ(h),
-	mode[MPEG_MODE(h)],
+	MPEG_BITRATE(h), MPEG_SAMPFREQ(h)/1000,
+	MPEG_PRIV(h)? ", priv" : "",
+	mode[MPEG_MODE(h)], MPEG_MODEEXT(h),
 	MPEG_COPY(h) ? ", copyright" : "",
 	MPEG_ORIG(h) ? ", original" : "",
-	emph[MPEG_EMPH(h)]);
+	MPEG_EMPH(h) ? ", " : "",
+	MPEG_EMPH(h) ? emph[MPEG_EMPH(h)] : "");
 }
