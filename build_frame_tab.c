@@ -30,7 +30,7 @@ int _mp3_samp_tab[4][3] = { /* sampling frequency in Hz */
     { 44100, 48000, 32000 },  /* MPEG 1.0 */
     { 22050, 24000, 16000 },  /* MPEG 2.0 */
     {     0,     0,     0 },  /* not used */
-    { 32000, 16000,  8000 }   /* MPEG 2.5 */
+    { 11025, 12000,  8000 }   /* MPEG 2.5 */
 };
 
 int _mp3_bit_tab[2][16][3] = { /* bit rate in 1000 bit/s */
