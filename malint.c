@@ -635,7 +635,7 @@ check_l3(long pos, unsigned long h, unsigned char *b, int blen,
 	next_bitres = max_back;
 
     if (back && taginbitres && (output & OUT_BITR_TAGIN))
-	out(pos, "bit resrvoir spans across ID3 tag");
+	out(pos, "bit reservoir spans across ID3 tag");
 
     if (back > *bitresp && (output & OUT_BITR_OVERFLOW))
 	out(pos, "main_data_begin overflows bit reservoir (%d > %d)",
