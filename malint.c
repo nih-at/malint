@@ -139,7 +139,7 @@ main(int argc, char **argv)
     build_length_table();
     crc_init();
 
-    output = 0xfffffff & ~OUT_FASTINFO_ONLY;
+    output = 0xfffffff & ~(OUT_FASTINFO_ONLY|OUT_BITR_GAP);
     min_consec = 6;
 
     opterr = 0;
