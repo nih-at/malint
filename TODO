@@ -1,4 +1,3 @@
-B Prince/rest/4-16: tag not found if from stdin
 + release
 + add copyright comments to mpg123.[ch]
 + configure: test for uncommon functions, add replacements (which?)
@@ -8,7 +7,6 @@ B Prince/rest/4-16: tag not found if from stdin
 + better handling of bit reservoir when skipping (and with tags in middle)
 + different format for header changes (at least if !OUT_HEAD1ST)
 - compare fast-info calculations with frame-count calculations
-- recognize frame before id3v1 at end of file as last (len == -1)
 - doku
 - VBR: check frames and bytes against actual values, warn about tags in middle
 - VBR: check toc against frame positions in stream

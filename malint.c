@@ -255,10 +255,14 @@ process_file(FILE *f, char *fname)
 	    h_next = 0;
 	    if (inbuf_getlong(&h_next, l+flen, ib) < 0)
 		eof = 1;
-	    else if (!IS_VALID(h_next)) {
+	    if (!IS_VALID(h_next)) {
 		lresync = l;
 		if (resync(&lresync, &h_next, ib, 1) >= 0)
 		    n = ((lresync-l) < flen ? (lresync-l) : flen);
+		if (IS_ID3v1(h_next)) {
+		    if (inbuf_getc(lresync+128, ib) == -1)
+			eof = 1;
+		}
 	    }
 	    inbuf_unkeep(ib);
 	    n = inbuf_copy(&p, l, n, ib);
@@ -409,13 +413,13 @@ process_file(FILE *f, char *fname)
     if (h_old && (output & OUT_PLAYTIME)) {
 	if (!(output & OUT_FASTINFO_ONLY)) {
 	    /* XXX: only works if sampfreq doesn't change during song */
-	    len = (nframes*MPEG_NSAMP(h))/MPEG_SAMPFREQ(h_old);
+	    len = (nframes*MPEG_NSAMP(h_old))/MPEG_SAMPFREQ(h_old);
 	    out(l, "play time: %02d:%02d:%02d (%ld frames)",
 		len/3600, (len/60)%60, len%60, nframes);
 	}
 	else if (vbr) {
 	    if (vbr->flags & VBR_FRAMES) {
-		len = (vbr->frames*MPEG_NSAMP(h))/MPEG_SAMPFREQ(h_old);
+		len = (vbr->frames*MPEG_NSAMP(h_old))/MPEG_SAMPFREQ(h_old);
 		out(l, "play time: %02d:%02d:%02d (according to vbr tag)",
 		    len/3600, (len/60)%60, len%60);
 	    }
