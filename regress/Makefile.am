@@ -33,3 +33,6 @@ check: ../malint
 	echo "$$banner"; \
 	echo "$$dashes"; \
 	test "$$failed" -eq 0
+
+../malint:
+	cd .. && $(MAKE) malint
