@@ -514,7 +514,7 @@ print_header(long pos, unsigned long h)
 	MPEG_VERSION(h), MPEG_LAYER(h),
 	MPEG_CRC(h) ? ", crc" : "",
 	MPEG_BITRATE(h), MPEG_SAMPFREQ(h)/1000,
-	MPEG_PRIV(h)? ", priv" : "",
+	MPEG_PRIV(h)? "priv, " : "",
 	mode[MPEG_MODE(h)],
 	MPEG_COPY(h) ? ", copyright" : "",
 	MPEG_ORIG(h) ? ", original" : "",
@@ -628,12 +628,12 @@ resync(long *lp, unsigned long *hp, FILE *f)
     l = *lp;
     h = *hp;
 
-    for (try=1; (c=getc(f))!=EOF && try<MAX_SKIP; try++,l++) {
+    for (try=1; (c=getc(f))!=EOF && try<MAX_SKIP; try++) {
 	h = (h<<8)|(c&0xff);
 	if (IS_VALID(h)) {
 	    out(l, "skipping %d bytes", try);
 	    *hp = h;
-	    *lp = l;
+	    *lp = l+try;
 	    return 0;	    
 	}
     }
