@@ -1,0 +1,4 @@
+frame-l3crc.in:
+ at        0: MPEG 1 layer 3, crc, 160kbps, 44kHz, stereo, copyright
+ at      522: CRC error (calc:9660 != file:aa55)
+ at     1045: play time: 00:00:00 (2 frames)
