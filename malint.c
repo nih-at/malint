@@ -73,6 +73,11 @@ process_file(FILE *f, char *fname)
 	    /* valid header */
 	    data = "last frame";
 	    j = table[(h&0x000fffe0)>>9];
+	    if (j == 0) {
+		printf("%s: illegal header at %ld: 0x%lx\n",
+		       fname, l, h);
+		break;
+	    }
 	}
 	else {
 	    if ((h&0xffffff00) == (('T'<<24)|('A'<<16)|('G'<<8))) {
