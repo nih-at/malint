@@ -324,9 +324,11 @@ process_file(FILE *f, char *fname)
 		    switch (MPEG_LAYER(h)) {
 		    case 1:
 			dlen = check_l1(l, h, p, n, flen);
+			bitres = 0;
 			break;
 		    case 2:
 			dlen = flen;
+			bitres = 0;
 			break;
 		    case 3:
 			dlen = check_l3(l, h, p, n, flen, &bitres);
@@ -381,12 +383,12 @@ process_file(FILE *f, char *fname)
 		    }
 		    break;
 		}
-		inbuf_getlong(&h, l+6, ib);
+		inbuf_getlong(&h_next, l+6, ib);
 		inbuf_unkeep(ib);
-		n = LONG_TO_ID3LEN(h) + 10;
+		n = LONG_TO_ID3LEN(h_next) + 10;
 		if (inbuf_copy(&p, l, n, ib) != n) {
 		    if (output & OUT_TAG_SHORT) {
-			out(l, "ID3v2.%c", (h&0xff)+'0');
+			out(l, "ID3v2.%c.%c", (h&0xff)+'0', (h_next>>24)+'0');
 			printf("    short tag\n");
 		    }
 		    break;
@@ -574,6 +576,7 @@ check_l3(long pos, unsigned long h, unsigned char *b, int blen,
 
     if (get_sideinfo(&si, h, b, blen) < 0) {
 	out(pos, "cannot parse sideinfo");
+	/* XXX: bitresp? */
 	return flen;
     }
 	
