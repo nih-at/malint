@@ -3,9 +3,8 @@
   It parses an MPEG audio stream and prints information about the
 stream and format violations it finds.
 
-  There is currently no documentation.  Many of the checks (and
-information outputs) can be enabled or disabled via command line
-switches.  Run `malint --help' for a list.
+  Many of the checks (and information outputs) can be enabled or
+disabled via command line switches.  Run `malint --help' for a list.
 
   `malint -I' (--fast-info) only prints information that can be
 provided without reading (and parsing) the whole MPEG stream.
@@ -14,8 +13,14 @@ provided without reading (and parsing) the whole MPEG stream.
 
   If you make a binary distribution, please include a pointer to the
 distribution site:
-	ftp.giga.or.at /pub/nih/malint
-	http://ftp.giga.or.at/pub/nih/malint
-The latest version can always be found there.
+        ftp.nih.at /pub/nih/malint
+        http://www.nih.at/malint
 
-Mail suggestions and bug reports to <dillo@giga.or.at>.
+  The latest version can always be found there and on the backup sites:
+        ftp.giga.or.at /pub/nih/malint
+        http://ftp.giga.or.at/pub/nih/malint
+
+        sunsite.univie.ac.at /pub/nih/malint
+        http://sunsite.univie.ac.at/pub/nih/malint
+
+  Mail suggestions and bug reports to <dillo@giga.or.at>.
