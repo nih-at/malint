@@ -349,9 +349,9 @@ process_file(FILE *f, char *fname)
 			n, j, j-n);
 		}
 		
-		l += n;
 		nframes++;
 	    }
+	    l += n;
 	}
 	else {
 	    if (IS_ID3v1(h)) {
