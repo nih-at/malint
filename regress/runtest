@@ -1,6 +1,6 @@
 #!/bin/sh
 
-#  $NiH: runtest,v 1.7 2002/04/16 22:46:47 wiz Exp $
+#  $NiH: runtest,v 1.1 2002/04/19 13:57:11 dillo Exp $
 #
 #  runtest -- run regression tests
 #  Copyright (C) 2002 Dieter Baron
@@ -33,6 +33,8 @@
 #	description of this test
 #   return RET
 #	where RET is the expected return code from malint.
+#   precmd COMMAND
+#	output of COMMAND will be piped into malint [optional]
 #   args ARGUMENTS
 #	where ARGUMENTS are the options and arguments to invoke malint with.
 # 
@@ -118,14 +120,24 @@ read c RET
 check_in $c return
 
 read c ARGS
+if [ "$c" = "precmd" ]
+then
+    PRECMD="${ARGS}"
+    read c ARGS
+fi
 check_in $c args
 
 if [ ! -z "${VERBOSE}" ]
 then
     	echo "test ${TEST}: ${TITLE}"
-	echo "running: ${MALINT} ${srcdir}/${TEST}.in*"
+	echo "running: ${PRECMD}${PRECMD:+ | }${MALINT} ${ARGS}"
 fi
-${MALINT} ${ARGS} > ${LOG} 2>&1
+if [ ! -z "${PRECMD}" ]
+then
+    ${PRECMD} | ${MALINT} ${ARGS} > ${LOG} 2>&1
+else
+    ${MALINT} ${ARGS} > ${LOG} 2>&1
+fi
 ret=$?
 
 if [ $ret -ne ${RET} ]
