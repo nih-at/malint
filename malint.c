@@ -645,7 +645,7 @@ get_sideinfo(struct sideinfo *si, unsigned long h, unsigned char *b, int blen)
     
 
 
-#define MAX_SKIP  65536
+#define MAX_SKIP  (1024*1024)
 
 int
 resync(long *lp, unsigned long *hp, struct inbuf *ib, int inframe, int maxtry)
@@ -705,7 +705,7 @@ resync(long *lp, unsigned long *hp, struct inbuf *ib, int inframe, int maxtry)
 	    out(l, "inbuf overflow after %d bytes, bailing out", try);
     }
     else if (!inframe && (output & OUT_RESYNC_BAILOUT))
-	out(l, "no sync found in 64k, bailing out");
+	out(l, "no sync found in 1mb, bailing out");
     
     return -1;
 }
