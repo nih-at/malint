@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 
+void build_length_table(int *table);
+
 
 
 int table[2048];
@@ -60,7 +62,6 @@ main(int argc, char **argv)
 			   argv[i], l);
 		    data = "ID3v1 tag";
 		    if (fread(b+4, 124, 1, f) != 1) {
-			/* XXX: short tag */
 			printf("    short tag\n");
 			break;
 		    }
@@ -71,13 +72,11 @@ main(int argc, char **argv)
 		else if ((h&0xffffff00) == (('I'<<24)|('D'<<16)|('3'<<8))) {
 		    printf("%s: ID3v2 tag at %ld\n", argv[i], l);
 		    if (fread(b+4, 6, 1, f) != 1) {
-			/* XXX: short header */
 			printf("    short header\n");
 			break;
 		    }
 		    j = GET_ID3LEN(b+6);
 		    if (fread(b+10, j, 1, f) != 1) {
-			/* XXX: short tag */
 			printf("    short tag\n");
 			break;
 		    }
