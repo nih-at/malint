@@ -602,28 +602,4 @@ get_sideinfo(struct sideinfo *si, unsigned long h, unsigned char *b, int blen)
     else 
 	return III_get_side_info_1(si, stereo, ms_stereo, sfreq, 0);
 }
-
-
-
-int
-get_frame_data_len(unsigned long h, struct sideinfo *si)
-{
-    int i, j, granules, n, stereo;
-
-    stereo = (MPEG_MODE(h) == MPEG_MODE_SINGLE ? 1 : 2);
-    granules = (MPEG_VERSION(h) == 2 ? 1 : 2);
-
-    n = 0;
-    for (i=0; i<granules; i++) {
-	for (j=0; j<stereo; j++) {
-	    if (MPEG_VERSION(h) == 2)
-		n += III_get_scale_factors_2(NULL, &(si->ch[j].gr[i]),
-					     0);
-	else
-	    n += III_get_scale_factors_1(NULL, &(si->ch[j].gr[i]));
-	}
-    }
-
-    return (n+7)/8;
-}
     
