@@ -104,7 +104,7 @@ void crc_init(void);
 int crc_frame(unsigned long h, unsigned char *data, int len);
 
 /* id3 */
-void parse_tag_v1(long pos, char *data, int in_middle);
+void parse_tag_v1(long pos, char *data, int len, int in_middle);
 void parse_tag_v2(long pos, unsigned char *data, int len);
 
 

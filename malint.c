@@ -242,7 +242,8 @@ process_file(FILE *f, char *fname)
     struct vbr *vbr;
     struct inbuf *ib;
     int endtag_found;
-    int dlen, flen, n, crc_f, crc_c, i;
+    int dlen, flen, crc_f, crc_c, i;
+    int n;		/* number of bytes available (from frame/tag) */
     int taginbitres, bitres, eof;
     long l, lresync, len, nframes, bitr;
     unsigned long h, h_old, h_next, h_change_mask;
@@ -251,13 +252,16 @@ process_file(FILE *f, char *fname)
     out_start(fname);
     endtag_found = 0;
 
+
+    /* check for ID3v1 at end of file */
+
     if (fseek(f, -128, SEEK_END) >= 0) {
 	len = ftell(f);
 	if (fread(b, 128, 1, f) == 1) {
 	    if (strncmp(b, "TAG", 3) == 0) {
 		endtag_found = 1;
 		if (output & OUT_M_TAG)
-		    parse_tag_v1(len, b, 0);
+		    parse_tag_v1(len, b, 128, 0);
 	    }
 	    else
 		len += 128;
@@ -367,6 +371,7 @@ process_file(FILE *f, char *fname)
 					&bitres, taginbitres);
 			break;
 		    }
+		    /* XXX: bitres can span back more than 1 frame */
 		    taginbitres = 0;
 
 		    if (dlen > flen && (output & OUT_BITR_FRAME_OVER))
@@ -376,13 +381,6 @@ process_file(FILE *f, char *fname)
 		    if (n != flen)
 			warn_short_frame(l, dlen, flen, n, eof);
 		}
-#if 0
-		else if (n < j && (output & OUT_LFRAME_SHORT)) {
-		    /* XXX: check for EOF */
-		    out(l, "short frame: %d of %d bytes (%d missing)",
-			n, j, j-n);
-		}
-#endif
 
 		if (vbr)
 		    bitr += MPEG_BITRATE(h);
@@ -390,59 +388,50 @@ process_file(FILE *f, char *fname)
 	    }
 	    l += n;
 	}
+	else if (IS_ID3v1(h)) {
+	    taginbitres = 1;
+	    n = inbuf_copy(&p, l, 128, ib);
+	    if (output & OUT_M_TAG) {
+		parse_tag_v1(l, p, n,
+			     endtag_found || (inbuf_getc(l+n, ib) != -1));
+	    }
+	    /* XXX: l+= n? */
+	    l += 128;
+	    continue;
+	}
+	else if (IS_ID3v2(h)) {
+	    taginbitres = 1;
+	    inbuf_keep(l, ib);
+	    if (inbuf_getc(l+10, ib) < 0) {
+		if (output & OUT_TAG_SHORT) {
+		    out(l, "ID3v2.%c", (h&0xff)+'0');
+		    printf("    short header\n");
+		}
+		break;
+	    }
+	    inbuf_getlong(&h_next, l+6, ib);
+	    inbuf_unkeep(ib);
+	    n = LONG_TO_ID3LEN(h_next) + 10;
+	    if (inbuf_copy(&p, l, n, ib) != n) {
+		if (output & OUT_TAG_SHORT) {
+		    out(l, "ID3v2.%c.%c", (h&0xff)+'0', (h_next>>24)+'0');
+		    printf("    short tag\n");
+		}
+		break;
+	    }
+	    if (output & OUT_M_TAG)
+		parse_tag_v2(l, p, n);
+	    l += n;
+	    continue;
+	}
 	else {
-	    if (IS_ID3v1(h)) {
-		taginbitres = 1;
-		if (inbuf_copy(&p, l, 128, ib) != 128) {
-		    if (output & OUT_TAG_SHORT) {
-			out(l, "ID3v1 tag");
-			printf("    short tag\n");
-		    }
-		    break;
-		}
-		else
-		    if (output & OUT_M_TAG) {
-			parse_tag_v1(l, p,
-				     endtag_found
-				     || (inbuf_getc(l+128, ib) != -1));
-		    }
-		l += 128;
-		continue;
-	    }
-	    else if (IS_ID3v2(h)) {
-		taginbitres = 1;
-		inbuf_keep(l, ib);
-		if (inbuf_getc(l+10, ib) < 0) {
-		    if (output & OUT_TAG_SHORT) {
-			out(l, "ID3v2.%c", (h&0xff)+'0');
-			printf("    short header\n");
-		    }
-		    break;
-		}
-		inbuf_getlong(&h_next, l+6, ib);
-		inbuf_unkeep(ib);
-		n = LONG_TO_ID3LEN(h_next) + 10;
-		if (inbuf_copy(&p, l, n, ib) != n) {
-		    if (output & OUT_TAG_SHORT) {
-			out(l, "ID3v2.%c.%c", (h&0xff)+'0', (h_next>>24)+'0');
-			printf("    short tag\n");
-		    }
-		    break;
-		}
-		if (output & OUT_M_TAG)
-		    parse_tag_v2(l, p, n);
-		l += n;
-		continue;
-	    }
-	    else {
-		/* no sync */
-		if (output & OUT_HEAD_ILLEGAL)
-		    out(l, "illegal header 0x%08lx (%s)", h, ulong2asc(h));
-		lresync = l;
-		if (resync(&l, &h, ib, 0, 0) < 0)
-		    break;
-		bitres += l-lresync;
-	    }
+	    /* no sync */
+	    if (output & OUT_HEAD_ILLEGAL)
+		out(l, "illegal header 0x%08lx (%s)", h, ulong2asc(h));
+	    lresync = l;
+	    if (resync(&l, &h, ib, 0, 0) < 0)
+		break;
+	    bitres += l-lresync;
 	}
     }
 

@@ -38,7 +38,7 @@ static char *__tags[] = {
 };
 
 static void parse_tag_v22(unsigned char *data, int len);
-static int field_len(char *data, int len);
+static int field_len(char *data, int len, int dlen);
 
 
 
@@ -129,9 +129,12 @@ parse_tag_v22(unsigned char *data, int len)
 
 
 static int
-field_len(char *data, int len)
+field_len(char *data, int len, int dlen)
 {
     int l;
+
+    if (len > dlen)
+	len = dlen;
 
     for (l=0; l<len && data[l]; l++)
 	;
@@ -147,7 +150,7 @@ field_len(char *data, int len)
 
 
 void
-parse_tag_v1(long pos, char *data, int in_middle)
+parse_tag_v1(long pos, char *data, int n, int in_middle)
 {
     static struct {
 	char *name;
@@ -162,20 +165,22 @@ parse_tag_v1(long pos, char *data, int in_middle)
 
     int v11, i, len;
 
-    if (!(output & OUT_TAG))
-	return;
+    if (n == 128)
+	v11 = data[126] && data[125] == 0;
+    else
+	v11 = 0;
 
-    v11 = data[126] && data[125] == 0;
-
-    out(pos, "ID3v1%s tag%s",
-	v11 ? ".1" : "",
-	in_middle ? " (in middle of file)" : "");
-
+    if ((output & OUT_TAG) || (n!=128 && (output & OUT_TAG_SHORT)))
+	out(pos, "%sID3v1%s tag%s",
+	    n != 128 ? "short " : "",
+	    v11 ? ".1" : "",
+	    in_middle ? " (in middle of file)" : "");
+    
     if (!(output & OUT_TAG_CONTENTS))
 	return;
 
     for (i=0; field[i].name; i++) {
-	len = field_len(data+field[i].start, field[i].len);
+	len = field_len(data+field[i].start, field[i].len, n-field[i].start);
 	if (len > 0) {
 	    printf("   %s:\t%.*s\n",
 		   field[i].name, len, data+field[i].start);
@@ -184,3 +189,5 @@ parse_tag_v1(long pos, char *data, int in_middle)
     if (v11)
 	printf("   Track:\t%d\n", data[126]);
 }
+
+
