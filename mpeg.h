@@ -30,7 +30,7 @@ extern int _mp3_samp_tab[4][3];		/* in build_frame_tab.c */
 extern int _mp3_bit_tab[2][16][3];	/* in build_frame_tab.c */
 extern short _mp3_flen_tab[4096];	/* in build_frame_tab.c */
 extern int _mp3_jsb_tab[3][4];
-extern int _mp3_nsamp_tab[3];
+extern int _mp3_nsamp_tab[2][3];
 
 
 /* extracting fields from header */
@@ -60,7 +60,8 @@ extern int _mp3_nsamp_tab[3];
 #define MPEG_SILEN(h)   (MPEG_VERSION(h) == MPEG_VERSION_10 \
 			 ? (MPEG_MODE(h) == MPEG_MODE_SINGLE ? 17 : 32) \
 			 : (MPEG_MODE(h) == MPEG_MODE_SINGLE ?  9 : 17))
-#define MPEG_NSAMP(h)	(_mp3_nsamp_tab[MPEG_LAYER(h)-1])
+#define MPEG_NSAMP(h)	(_mp3_nsamp_tab[MPEG_VERSION(h)!=MPEG_VERSION_10] \
+				[MPEG_LAYER(h)-1])
 
 /* header field values */
 

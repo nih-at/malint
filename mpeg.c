@@ -27,4 +27,7 @@
 #include "mpeg.h"
 
 /* number of samples per frame */
-int _mp3_nsamp_tab[3] = { 384, 1152, 1152 };
+int _mp3_nsamp_tab[2][3] = { /* [version][layer] */
+    { 384, 1152, 1152 }, /* MPEG 1 */
+    { 192,  576,  576 }  /* MPEG 2 */
+};
