@@ -132,14 +132,14 @@ process_file(FILE *f, char *fname)
 	    }
 	    else {
 		/* not recognized */
-		out(l, "illegal header 0x%lx\n", h);
+		out(l, "illegal header 0x%lx", h);
 		/* resync? */
 		break;
 	    }
 	}
 	if (j>4) {
 	    if ((n=fread(b, 1, j-4, f)) != j-4) {
-		out(l, "short last frame: %d of %d bytes\n", n+4, j);
+		out(l, "short last frame: %d of %d bytes", n+4, j);
 		break;
 	    }
 	}
