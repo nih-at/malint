@@ -566,6 +566,11 @@ check_l3(long pos, unsigned long h, unsigned char *b, int blen,
     hlen = 4 + MPEG_CRC(h)*2 + MPEG_SILEN(h);
     max_back = MPEG_VERSION(h) == 1 ? 511 : 255;
 
+    if (blen < hlen) {
+	/* XXX: bitresp? */
+	return flen;
+    }
+
     if (get_sideinfo(&si, h, b, blen) < 0) {
 	out(pos, "cannot parse sideinfo");
 	return flen;

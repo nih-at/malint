@@ -5,6 +5,7 @@
 + skipping 1 byte (not bytes)
 + better handling of bit reservoir when skipping (and with tags in middle)
 + different format for header changes (at least if !OUT_HEAD1ST)
+b check_l3: don't read side info if blen<hlen
 - split into multiple files (begun)
 - compare fast-info calculations with frame-count calculations
 - doku
