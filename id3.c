@@ -22,6 +22,7 @@
 
 
 
+#include <stdio.h>
 #include <string.h>
 
 #include "malint.h"
@@ -44,7 +45,7 @@ static int field_len(char *data, int len);
 void
 parse_tag_v2(long pos, unsigned char *data, int len)
 {
-    char *p, *end;
+    unsigned char *p, *end;
     int i;
 
     if (!(output & OUT_TAG))
