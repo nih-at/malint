@@ -37,6 +37,9 @@ int _mp3_jsb_tab[3][4] = {
 
 #define MPEG_FRLEN(h)	(table[((h)&0x000fffe0)>>9])
 #define MPEG_JSBOUND(h)	(_mp3_jsb_tab[MPEG_LAYER(h)-1][MPEG_MODEEXT(h)])
+#define MPEG_SILEN(h)   (MPEG_VERSION(h) == 1 \
+			 ? (MPEG_MODE(h) == MPEG_MODE_SINGLE ? 17 : 32) \
+			 : (MPEG_MODE(h) == MPEG_MODE_SINGLE ?  9 : 17))
 
 #define MPEG_MODE_STEREO	0x0
 #define MPEG_MODE_JSTEREO	0x1
@@ -124,6 +127,7 @@ int output;
 #define IS_ID3v2(h)	(((h)&0xffffff00) == (('I'<<24)|('D'<<16)|('3'<<8)))
 #define IS_ID3(h)	(IS_ID3v1(h) || IS_ID3v2(h))
 #define IS_VALID(h)	(IS_MPEG(h) || IS_ID3(h))
+#define IS_XING(h)	((h) == (('X'<<24)|('i'<<16)|('n'<<8)|('g')))
 
 #define OUT_TAG			0x0001
 #define OUT_TAG_CONTENTS	0x0002
@@ -352,14 +356,12 @@ process_file(FILE *f, char *fname)
 		    goto resynced;
 	    }
 	}
-	if (j>4) {
-	    inbuf_keep(l, ib);
-	    if (n =inbuf_getc(l+j, ib) == EOF)
-		n = inbuf_length(ib) - l;
-	    else
-		n = j;
-	    inbuf_unkeep(ib);
+	if (j>4)
+	    n = inbuf_copy(&p, l, j, ib);
 
+	if (MPEG_LAYER(h) == 3 && IS_XING(GET_LONG(p+4+MPEG_SILEN(h)))) {
+	    /* XXX: check for apropriate OUT_xxx */
+	    out(l, "vbr tag");
 	}
 
 	if (h_old == 0) {
@@ -378,9 +380,6 @@ process_file(FILE *f, char *fname)
 	        /* out(l, "header change: 0x%lx -> 0x%lx", h_old, h); */
 	}
 	h_old = h; 
-
-	/* XXX: only if framedata needed */
-	inbuf_copy(&p, l, j, ib);
 
 	if ((output & OUT_CRC_ERROR) && MPEG_CRC(h)) {
 	    crc_c = crc_frame(h, p, j);
@@ -665,18 +664,7 @@ crc_frame(unsigned long h, unsigned char *data, int len)
 	return -1;
 	
     case 3:
-	if (MPEG_VERSION(h) == 1) {
-	    if (MPEG_MODE(h) == MPEG_MODE_SINGLE)
-		n = 17;
-	    else
-		n = 32;
-	}
-	else {
-	    if (MPEG_MODE(h) == MPEG_MODE_SINGLE)
-		n = 9;
-	    else
-		n = 17;
-	}
+	n = MPEG_SILEN(h);
 	break;
     }
 
@@ -773,9 +761,7 @@ check_l3bitres(long pos, unsigned long h, unsigned char *b, int blen,
     unsigned char *sip;
     int hlen, back, dlen, this_len, next_bitres, max_back;
 
-    hlen = (4 + MPEG_CRC(h)*2
-	    + (MPEG_VERSION(h)==2 ? (MPEG_MODE(h) == MPEG_MODE_SINGLE ? 9 : 17)
-	       : (MPEG_MODE(h) == MPEG_MODE_SINGLE ? 17 : 32)));
+    hlen = 4 + MPEG_CRC(h)*2 + MPEG_SILEN(h);
     max_back = MPEG_VERSION(h) == 1 ? 511 : 255;
 
     if (get_sideinfo(&si, h, b, blen) < 0) {
