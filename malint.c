@@ -49,7 +49,7 @@ For more information about these matters, see the files named COPYING.\n";
 static char help_head[] = PROGRAM " (" PACKAGE ") " VERSION
 " by Dieter Baron <dillo@giga.or.at>\n\n";
 
-#define OPTIONS	"hVIEcCpPgG"
+#define OPTIONS	"hVIEcCpPgGdD"
 
 struct option options[] = {
     { "help",        0, 0, 'h' },
@@ -62,10 +62,12 @@ struct option options[] = {
     { "no-padding",  0, 0, 'P' },
     { "gap",         0, 0, 'g' },
     { "no-gap",      0, 0, 'G' },
+    { "duration",    0, 0, 'd' },
+    { "no-duration", 0, 0, 'D' },
     { NULL,          0, 0, 0   }
 };
 
-static char usage[] = "usage: %s [-hV] [-IEcCpPgG] [FILE ...]\n";
+static char usage[] = "usage: %s [-hV] [-IEcCpPgGdD] [FILE ...]\n";
 
 static char help_tail[] = "\n\
   -h, --help               display this help message\n\
@@ -78,6 +80,8 @@ static char help_tail[] = "\n\
   -P, --no-padding         do not check for missing padding in last frame\n\
   -g, --gap                check for unused bytes in bit reservoir\n\
   -G, --no-gap             do not check for unused bytes in bit reservoir\n\
+  -d, --duration           display duration of song\n\
+  -D, --no-duration        do not display duration of song\n\
 \n\
 Report bugs to <dillo@giga.or.at>.\n";
 
@@ -116,6 +120,7 @@ int output;
 #define OUT_TAG			0x0001
 #define OUT_TAG_CONTENTS	0x0002
 #define OUT_TAG_SHORT		0x2000
+#define OUT_PLAYTIME		0x8000
 #define OUT_HEAD_1ST		0x0004
 #define OUT_HEAD_1STONLY	0x4000
 #define OUT_HEAD_CHANGE		0x0008
@@ -194,6 +199,13 @@ main(int argc, char **argv)
 	case 'G':
 	    output &= ~OUT_BITR_GAP;
 	    break;
+	case 'd':
+	    output |= OUT_PLAYTIME;
+	    output &= ~OUT_HEAD_1STONLY;
+	    break;
+	case 'D':
+	    output &= ~OUT_PLAYTIME;
+	    break;
 
 	case 'V':
 	    fputs(version_out, stdout);
@@ -236,7 +248,7 @@ process_file(FILE *f, char *fname)
     struct inbuf *ib;
     int j, n, crc_f, crc_c;
     int bitres, frlen, frback;
-    long l, len;
+    long l, len, nframes;
     unsigned long h, h_old;
     unsigned char b[130], *p;
 
@@ -263,6 +275,7 @@ process_file(FILE *f, char *fname)
 
     ib = inbuf_new(f, len);
 
+    nframes = 0;
     bitres = 0;
     l = 0;
     h_old = 0;
@@ -279,6 +292,7 @@ process_file(FILE *f, char *fname)
 		else
 		    goto resynced;
 	    }
+	    nframes++;
 	}
 	else {
 	    if (IS_ID3v1(h)) {
@@ -378,8 +392,14 @@ process_file(FILE *f, char *fname)
 	    break;
 	}
 
-	l += j;
+	l += n;
     }
+
+    if (output & OUT_PLAYTIME) {
+	/* XXX: only works if sampfreq doesn't change during song */
+	len = (nframes*1152)/MPEG_SAMPFREQ(h_old);
+	out(l, "play time: %02d:%02d:%02d", len/3600, (len/60)%60, len%60);
+    }	    
 
     if (ferror(f)) {
 	fprintf(stderr, "%s: read error on %s: %s\n",
