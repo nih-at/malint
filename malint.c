@@ -163,7 +163,7 @@ void out(long pos, char *fmt, ...);
 
 char *mem2asc(char *mem, int len);
 char *ulong2asc(unsigned long);
-void print_header(long pos, unsigned long h);
+void print_header(long pos, unsigned long h, int vbrkbps);
 
 void parse_tag_v1(long pos, char *data);
 void parse_tag_v2(long pos, unsigned char *data, int len);
@@ -366,7 +366,7 @@ process_file(FILE *f, char *fname)
 
 	if (h_old == 0) {
 	    if (output & OUT_HEAD_1ST)
-		print_header(l, h);
+		print_header(l, h, 0);
 	    if (output & OUT_FASTINFO_ONLY) {
 		h_old = h;
 		break;
@@ -376,7 +376,7 @@ process_file(FILE *f, char *fname)
 	    /* XXX: check invariants */
 	    /* ignores padding, mode ext. */
 	    if ((h_old & 0xfffffddf) != (h & 0xfffffddf))
-		print_header(l, h);
+		print_header(l, h, 0);
 	        /* out(l, "header change: 0x%lx -> 0x%lx", h_old, h); */
 	}
 	h_old = h; 
@@ -729,7 +729,7 @@ ulong2asc(unsigned long l)
 
 
 void
-print_header(long pos, unsigned long h)
+print_header(long pos, unsigned long h, int vbrkbps)
 {
     static char *mode[] = {
 	"stereo", "j-stereo", "dual-ch", "mono"
@@ -738,10 +738,12 @@ print_header(long pos, unsigned long h)
 	"no emphasis", "50/15 micro seconds", "", "CCITT J.17"
     };
 
-    out(pos, "MPEG %d layer %d%s, %dkbps, %dkHz, %s%s%s%s%s%s",
+    out(pos, "MPEG %d layer %d%s, %dkbps%s, %dkHz, %s%s%s%s%s%s",
 	MPEG_VERSION(h), MPEG_LAYER(h),
 	MPEG_CRC(h) ? ", crc" : "",
-	MPEG_BITRATE(h), MPEG_SAMPFREQ(h)/1000,
+	(vbrkbps ? vbrkbps : MPEG_BITRATE(h)),
+	(vbrkbps ? " vbr" : ""),
+	MPEG_SAMPFREQ(h)/1000,
 	MPEG_PRIV(h)? "priv, " : "",
 	mode[MPEG_MODE(h)],
 	MPEG_COPY(h) ? ", copyright" : "",
