@@ -143,7 +143,7 @@ field_len(char *data, int len)
 
 
 void
-parse_tag_v1(long pos, char *data)
+parse_tag_v1(long pos, char *data, int in_middle)
 {
     static struct {
 	char *name;
@@ -160,7 +160,9 @@ parse_tag_v1(long pos, char *data)
 
     v11 = data[126] && data[125] == 0;
 
-    out(pos, "ID3v1%s tag", v11 ? ".1" : "");
+    out(pos, "ID3v1%s tag %s",
+	v11 ? ".1" : "",
+	in_middle ? "(in middle of file)" : "");
 
     if (!(output & OUT_TAG_CONTENTS))
 	return;

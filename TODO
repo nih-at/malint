@@ -1,11 +1,13 @@
 + release
 + add copyright comments to mpg123.[ch]
 + configure: test for uncommon functions, add replacements (which?)
-+ split into multiple files (begun)
 + command line options to select checks to perform (begun)
 + skipping 1 byte (not bytes)
 + better handling of bit reservoir when skipping (and with tags in middle)
 + different format for header changes (at least if !OUT_HEAD1ST)
+- handle header change to vbr better
+- handle end of vbr not end of stream
+- split into multiple files (begun)
 - compare fast-info calculations with frame-count calculations
 - doku
 - VBR: check frames and bytes against actual values, warn about tags in middle

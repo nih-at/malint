@@ -111,10 +111,6 @@ char *mem2asc(char *mem, int len);
 char *ulong2asc(unsigned long);
 void print_header(long pos, unsigned long h, int vbrkbps);
 
-void parse_tag_v1(long pos, char *data);
-void parse_tag_v2(long pos, unsigned char *data, int len);
-void parse_tag_v22(unsigned char *data, int len);
-
 
 
 int
@@ -210,6 +206,7 @@ process_file(FILE *f, char *fname)
 {
     struct vbr *vbr;
     struct inbuf *ib;
+    int endtag_found;
     int dlen, flen, n, crc_f, crc_c, i;
     int bitres, frlen, frback, eof;
     long l, lresync, len, nframes, bitr;
@@ -217,13 +214,15 @@ process_file(FILE *f, char *fname)
     unsigned char b[130], *p;
 
     out_start(fname);
+    endtag_found = 0;
 
     if (fseek(f, -128, SEEK_END) >= 0) {
 	len = ftell(f);
 	if (fread(b, 128, 1, f) == 1) {
 	    if (strncmp(b, "TAG", 3) == 0) {
+		endtag_found = 1;
 		if (output & OUT_TAG)
-		    parse_tag_v1(len, b);
+		    parse_tag_v1(len, b, 0);
 	    }
 	    else
 		len += 128;
@@ -356,14 +355,16 @@ process_file(FILE *f, char *fname)
 	    if (IS_ID3v1(h)) {
 		if (inbuf_copy(&p, l, 128, ib) != 128) {
 		    if (output & OUT_TAG_SHORT) {
-			out(l, "ID3v1 tag (in middle of song)");
+			out(l, "ID3v1 tag");
 			printf("    short tag\n");
 		    }
 		    break;
 		}
 		else
 		    if (output & OUT_TAG) {
-			parse_tag_v1(l, p);
+			parse_tag_v1(l, p,
+				     endtag_found
+				     || (inbuf_getc(l+128, ib) != -1));
 		    }
 		l += 128;
 		continue;
