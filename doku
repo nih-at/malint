@@ -1,3 +1,17 @@
+Things not working yet:
+
+VBR only works if the VBR tag is at the beginning of the stream
+(possibly after an ID3 tag) and spans to the end of the stream.
+
+Large ID3v2 tags (>64k) or ID3v2 tags with unsynchronization are not
+handled properly.
+
+Layer 2 CRC calculation is not performed.
+
+
+
+Error and warning messages:
+
 * CRC error (calc:XXXX != file:YYYY)
 
 the crc malint calculated for this frame (XXXX) differs from the crc
@@ -12,7 +26,52 @@ bit-alloc) is more than the frame can contain (N).
 
 XXXXXXXX (AAAA in ASCII) was found where a frame header was expected.
 
+* bit reservoir spans across ID3 tag
+
+parts of the bit reservoir are located before an ID3 tag, whereas this
+frame is located after it.
+
+* main_data_begin overflows bit reservoir (N > R)
+
+main_data_begin says this frame uses N bytes of the bit reservoir, but
+the reservoir contains only R bytes.
+
+* gap in bit stream (N < R)
+
+only N of the R bytes in the bit reservoir are used.  This is not an
+error.
+
+* skipping N bytes
+
+N bytes were skipped during resynchornization.
+
+* skipping N bytes, reaching EOF
+
+N bytes were skipped during resynchornization, thus reaching the end
+of the stream.  Resynchornization failed.
+
+* no sync found in 64k, bailing out
+
+no sync was found while scanning 64k bytes.  Resynchronization was
+given up.
+
+* short [last] frame N of M bytes (D+P=M missing)
+
+The [last] frame should be M bytes long, but was found to be only N
+bytes long.  D bytes of frame data and P bytes of padding (giving M
+bytes total) are missing.
+
+* padding missing from [last] frame (P bytes)
+
+All P bytes of padding was found to be missing from the [last] frame.
+
+* padding missing from [last] frame (M of P bytes)
+
+M of P bytes padding was found to be missing from the [last] frame.
+
 
+
+Info messages:
 
 * MPEG V layer L ...
 
@@ -23,6 +82,8 @@ parameters change.
 * play time: HH:MM:SS (N frames)
 
 play time of this stream is HH:MM:SS.  The stream contains N frames.
+(The play time calculation does not work if the sampling frequency is
+not constant throughout the stream.)
 
 * play time: HH:MM:SS (according to vbr tag)
 
