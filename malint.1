@@ -1,4 +1,4 @@
-.\" $NiH: malint.1,v 1.5 2002/04/17 18:40:24 wiz Exp $
+.\" $NiH: malint.1,v 1.6 2004/11/06 02:32:57 dillo Exp $
 .Dd November 4, 2004
 .Dt MALINT 1
 .Os
@@ -47,16 +47,16 @@ Only display error diagnostics: ignore some warnings and don't display
 informational messages (tags and duration of the stream).
 .It Fl f
 .It Fl -header-change
-Display header field changes that occur in the stream (default).
+Display frame header field changes that occur in the stream (default).
 .It Fl F
 .It Fl -no-header-change
 Don't display changes in frame header fields.
 .It Fl g
 .It Fl -gap
-Check for unused bytes in bit reservoir (default).
+Check for unused bytes in bit reservoir.
 .It Fl G
 .It Fl -no-gap
-Don't check for unused bytes in bit reservoir.
+Don't check for unused bytes in bit reservoir (default).
 .It Fl h
 .It Fl -help
 Display help message.
@@ -121,8 +121,8 @@ N bytes were skipped during resynchronization.
 .It skipping N bytes, reaching EOF
 N bytes were skipped during resynchronization, thus reaching the end
 of the stream.  Resynchronization failed.
-.It no sync found in 64k, bailing out
-no sync was found while scanning 64k bytes.  Resynchronization was
+.It no sync found in 1mb, bailing out
+no sync was found while scanning 1 megabyte.  Resynchronization was
 given up.
 .It short [last] frame N of L bytes (D+P=M missing)
 The [last] frame should be L bytes long, but was found to be only N
