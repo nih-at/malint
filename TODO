@@ -1,6 +1,7 @@
 + release
-+ command line options to select checks to perform (begun)
-+ better handling of bit reservoir when skipping (and with tags in middle)
+- command line options to select checks to perform (begun)
+- proper check for bitres use across tags (byte count instead of flag)
+- warn when using skipped data in bitres?
 - skipping 1 byte (not bytes)
 - different format for header changes (at least if !OUT_HEAD1ST)
 - ID3v2 incremental parsing, unsynchronization support
