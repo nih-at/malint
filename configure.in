@@ -24,7 +24,7 @@ dnl compiler characteristics
 dnl library functions
 
 AC_REPLACE_FUNCS(strerror) dnl asprintf vasprintf
-AC_CHECK_FUNCS(getopt_long, , [LIBOBJS="$LIBOBJS getopt1.o getopt.o"])
+AC_CHECK_FUNCS(getopt_long, , [AC_LIBOBJ(getopt1) AC_LIBOBJ(getopt)])
 
 dnl system services
 
