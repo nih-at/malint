@@ -1,0 +1,140 @@
+#!/bin/sh
+
+#  $NiH: runtest,v 1.7 2002/04/16 22:46:47 wiz Exp $
+#
+#  runtest -- run regression tests
+#  Copyright (C) 2002 Dieter Baron
+#
+#  This file is part of malint, an MPEG Audio stream validator.
+#  The author can be contacted at <dillo@giga.or.at>
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+# runtest TESTNAME EXIT-CODE OUTPUT-FILENAMES
+#
+# files: 
+#   TESTNAME.test: test scenario
+#   TESTNAME.log: expected malint output
+#
+# test scenario files contain the following lines in that order:
+#   title TEST DESCRIPTION
+#	description of this test
+#   return RET
+#	where RET is the expected return code from malint.
+#   args ARGUMENTS
+#	where ARGUMENTS are the options and arguments to invoke malint with.
+# 
+# environment variables:
+#   VERBOSE: if set, be more verbose (e. g., output diffs)
+#   NOCLEANUP: if set, don't delete output created by test run
+
+die() {
+	echo "$0: $*" >&2;
+	cleanup;
+	exit 2;
+}
+
+fail() {
+	echo "${TEST} -- FAILED: $*";
+	cleanup;
+	exit 1;
+}
+
+succeed() {
+	if [ ! -z "${VERBOSE}" ]
+	then
+		echo "${TEST} -- passed";
+	fi
+	cleanup;
+	exit 0;
+}
+
+cleanup() {
+	if [ -z "${NOCLEANUP}" ]
+	then
+		rm -f ${LOG};
+	fi
+}
+
+checkfile() {
+	if [ ! -f "$2" ]
+	then
+		fail "missing output file: '$2'"
+	else
+		diff "$1" "$2" > /dev/null
+		if [ $? -ne 0 ]
+		then
+			if [ ! -z "${VERBOSE}" ]
+			then
+				diff -u "$1" "$2"
+			fi
+			fail "$3"
+		fi
+	fi
+}
+
+check_in() {
+	if [ ! "$1" = "$2" ]
+	then
+		die "unexpected directive in test file: got '$1', expeced '$2'"
+	fi
+}
+
+
+TEST=`echo $1 | sed 's/\.test$//'`
+shift
+
+LOG=${TEST}.$$
+if [ -z "${srcdir}" ]
+then
+    srcdir=.
+fi
+
+if [ -z "${MALINT}" ]
+then
+    MALINT=../malint
+fi
+
+# XXX: set up trap to cleanup
+
+{
+
+read c TITLE
+check_in $c title
+
+read c RET
+check_in $c return
+
+read c ARGS
+check_in $c args
+
+if [ ! -z "${VERBOSE}" ]
+then
+    	echo "test ${TEST}: ${TITLE}"
+	echo "running: ${MALINT} ${srcdir}/${TEST}.in*"
+fi
+${MALINT} ${ARGS} > ${LOG} 2>&1
+ret=$?
+
+if [ $ret -ne ${RET} ]
+then
+	fail "unexpected exit status: got $ret, expected ${RET}"
+fi
+
+checkfile ${srcdir}/${TEST}.log ${LOG} "unexpected output"
+
+succeed
+
+} < ${srcdir}/${TEST}.test

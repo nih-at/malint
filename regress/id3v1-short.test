@@ -1,0 +1,3 @@
+title short ID3v1 tag
+return 0
+args id3v1-short.in

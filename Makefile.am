@@ -1,3 +1,5 @@
+SUBDIRS=regress
+
 LDADD=	@LIBOBJS@
 
 bin_PROGRAMS=malint
