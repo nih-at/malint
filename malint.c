@@ -322,7 +322,7 @@ process_file(FILE *f, char *fname)
 		else if (output & OUT_HEAD_CHANGE) {
 		    /* XXX: check invariants */
 		    /* ignores padding, mode ext. */
-		    if ((h_old & 0xfffffddf) != (h & 0xfffffddf))
+		    if ((h_old & 0xfffffdcf) != (h & 0xfffffdcf))
 			print_header(l, h, 0);
 		    /* out(l, "header change: 0x%lx -> 0x%lx", h_old, h); */
 		}
