@@ -1,0 +1,5 @@
+calculation of frame length and layer 3 crc code taken from mp3check by
+	Johannes Overmann <overmann@iname.com>
+
+layer 3 side info parsing code taken from xmms's mpg123 lib by
+	Michael Hipp <hippm@informatik.uni-tuebingen.de> and others
