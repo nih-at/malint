@@ -1,0 +1,4 @@
+frame-short.in:
+ at        0: MPEG 2 layer 3, 16kbps, 16kHz, mono, copyright, original
+ at      216: padding missing from frame (30 of 47 bytes)
+ at      546: play time: 00:00:00 (8 frames)

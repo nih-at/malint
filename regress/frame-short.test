@@ -1,0 +1,3 @@
+title 30 bytes missing from frame
+return 0
+args -N3 frame-short.in
