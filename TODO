@@ -1,3 +1,4 @@
+B resync seems broken (messages for short frames are wrong too)
 + release
 + add copyright comments
 + configure: test for uncommon functions, add replacements (vasprint, asprintf)
