@@ -48,7 +48,7 @@ For more information about these matters, see the files named COPYING.\n";
 static char help_head[] = PROGRAM " (" PACKAGE ") " VERSION
 " by Dieter Baron <dillo@giga.or.at>\n\n";
 
-#define OPTIONS	"hVIEcCpP"
+#define OPTIONS	"hVIEcCpPgG"
 
 struct option options[] = {
     { "help",        0, 0, 'h' },
@@ -59,10 +59,12 @@ struct option options[] = {
     { "crc",         0, 0, 'c' },
     { "padding",     0, 0, 'p' },
     { "no-padding",  0, 0, 'P' },
+    { "gap",         0, 0, 'g' },
+    { "no-gap",      0, 0, 'G' },
     { NULL,          0, 0, 0   }
 };
 
-static char usage[] = "usage: %s [-hV] [-IEcCpP] [FILE ...]\n";
+static char usage[] = "usage: %s [-hV] [-IEcCpPgG] [FILE ...]\n";
 
 static char help_tail[] = "\n\
   -h, --help               display this help message\n\
@@ -73,6 +75,8 @@ static char help_tail[] = "\n\
   -C, --no-crc             do not check CRC\n\
   -p, --padding            check for missing padding in last frame\n\
   -P, --no-padding         do not check for missing padding in last frame\n\
+  -g, --gap                check for unused bytes in bit reservoir\n\
+  -G, --no-gap             do not check for unused bytes in bit reservoir\n\
 \n\
 Report bugs to <dillo@giga.or.at>.\n";
 
@@ -176,6 +180,12 @@ main(int argc, char **argv)
 	    break;
 	case 'P':
 	    output &= ~OUT_LFRAME_PADDING;
+	    break;
+	case 'g':
+	    output |= OUT_BITR_GAP;
+	    break;
+	case 'G':
+	    output &= ~OUT_BITR_GAP;
 	    break;
 
 	case 'V':
