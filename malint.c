@@ -13,6 +13,11 @@ int process_file(FILE *f, char *fname);
 
 extern int _mp3_samp_tab[2][4];
 extern int _mp3_bit_tab[2][16][3];
+int _mp3_jsb_tab[3][4] = {
+    { 4, 8, 12, 16 },
+    { 4, 8, 12, 16},
+    { 0, 4,  8, 16}
+};
 
 #define MPEG_VERSION(h)	(2-(((h)&0x00080000)>>19))
 #define MPEG_LAYER(h)	(4-(((h)&0x00060000)>>17))
@@ -29,6 +34,9 @@ extern int _mp3_bit_tab[2][16][3];
 #define MPEG_COPY(h)	(!((h)&0x00000008))
 #define MPEG_ORIG(h)	(!((h)&0x00000004))
 #define MPEG_EMPH(h)	((h)&0x00000003)
+
+#define MPEG_FRLEN(h)	(table[((h)&0x000fffe0)>>9])
+#define MPEG_JSBOUND(h)	(_mp3_jsb_tab[MPEG_LAYER(h)-1][MPEG_MODEEXT(h)])
 
 #define MPEG_MODE_STEREO	0x0
 #define MPEG_MODE_JSTEREO	0x1
@@ -111,7 +119,7 @@ int output;
 				 | (((l)&0x7f)))
 
 #define IS_SYNC(h)	(((h)&0xfff00000) == 0xfff00000)
-#define IS_MPEG(h)	(IS_SYNC(h) && table[((h)&0x000fffe0)>>9])
+#define IS_MPEG(h)	(IS_SYNC(h) && MPEG_FRLEN(h))
 #define IS_ID3v1(h)	(((h)&0xffffff00) == (('T'<<24)|('A'<<16)|('G'<<8)))
 #define IS_ID3v2(h)	(((h)&0xffffff00) == (('I'<<24)|('D'<<16)|('3'<<8)))
 #define IS_ID3(h)	(IS_ID3v1(h) || IS_ID3v2(h))
@@ -283,7 +291,7 @@ process_file(FILE *f, char *fname)
 
     resynced:
 	if (IS_SYNC(h)) {
-	    j = table[(h&0x000fffe0)>>9];
+	    j = MPEG_FRLEN(h);
 	    if (j == 0) {
 		if (output & OUT_HEAD_ILLEGAL)
 		    out(l, "illegal header 0x%lx (%s)", h, ulong2asc(h));
@@ -398,7 +406,8 @@ process_file(FILE *f, char *fname)
     if (output & OUT_PLAYTIME) {
 	/* XXX: only works if sampfreq doesn't change during song */
 	len = (nframes*1152)/MPEG_SAMPFREQ(h_old);
-	out(l, "play time: %02d:%02d:%02d", len/3600, (len/60)%60, len%60);
+	out(l, "play time: %02d:%02d:%02d (%ld frames)",
+	    len/3600, (len/60)%60, len%60, nframes);
     }	    
 
     if (ferror(f)) {
@@ -624,11 +633,41 @@ crc_update(int *crc, unsigned char b)
 static int
 crc_frame(unsigned long h, unsigned char *data, int len)
 {
-    int i, crc, s;
+    int i, crc, n;
 
-    if (MPEG_LAYER(h) != 3) {
-	/* mp3check only supports layer 3.  get docu somewhere else */
+    switch (MPEG_LAYER(h)) {
+    case 1:
+	switch (MPEG_MODE(h)) {
+	case MPEG_MODE_SINGLE:
+	    n = 16;
+	    break;
+	case MPEG_MODE_JSTEREO:
+	    n = (32+MPEG_JSBOUND(h))/2;
+	    break;
+	case MPEG_MODE_STEREO:
+	case MPEG_MODE_DUAL:
+	    n = 32;
+	    break;
+	}
+	break;
+
+    case 2:
 	return -1;
+	
+    case 3:
+	if (MPEG_VERSION(h) == 1) {
+	    if (MPEG_MODE(h) == MPEG_MODE_SINGLE)
+		n = 17;
+	    else
+		n = 32;
+	}
+	else {
+	    if (MPEG_MODE(h) == MPEG_MODE_SINGLE)
+		n = 9;
+	    else
+		n = 17;
+	}
+	break;
     }
 
     crc = 0xffff;
@@ -636,23 +675,10 @@ crc_frame(unsigned long h, unsigned char *data, int len)
     crc_update(&crc, data[2]);
     crc_update(&crc, data[3]);
 
-    if (MPEG_VERSION(h) == 1) {
-	if (MPEG_MODE(h) == MPEG_MODE_SINGLE)
-	    s = 17;
-	else
-	    s = 32;
-    }
-    else {
-	if (MPEG_MODE(h) == MPEG_MODE_SINGLE)
-	    s = 9;
-	else
-	    s = 17;
-    }
-
-    for(i=0; i < s; i++)
-	crc_update(&crc, data[i+6]);
-    
-    return crc;
+	for(i=0; i < n; i++)
+	    crc_update(&crc, data[i+6]);
+	
+	return crc;
 }
 
 
@@ -844,7 +870,7 @@ resync(long *lp, unsigned long *hp, struct inbuf *ib)
 		valid = 1;
 		l2 = l+try;
 		for (i=0; i<MIN_CONSEC; i++) {
-		    l2 += table[(h&0x000fffe0)>>9];
+		    l2 += MPEG_FRLEN(h);
 		    if (inbuf_getlong(&h, l2, ib) < 0)
 			break;
 		    if (!IS_VALID(h)) {
