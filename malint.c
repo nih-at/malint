@@ -6,6 +6,8 @@
 void build_length_table(int *table);
 int process_file(FILE *f, char *fname);
 
+#define MPEG_CRC	0x00010000
+
 
 
 int table[2048];
@@ -146,6 +148,10 @@ process_file(FILE *f, char *fname)
 		out(l, "short last frame: %d of %d bytes", n, j);
 		break;
 	    }
+	}
+	/* read complete frame */
+	if (h & MPEG_CRC) {
+	    /* calculate crc */
 	}
 	l += j;
     }
