@@ -200,6 +200,11 @@ process_file(FILE *f, char *fname)
 		out(l, "CRC error (calc:%04x != file:%04x)", crc_c, crc_f);
 	}
 	l += j;
+
+#if 0
+	n = GET_SHORT(b+4+MPEG_CRC(h)*2)>>7;
+	printf(">>%d\n", n);
+#endif
     }
 
     if (ferror(f)) {
