@@ -53,6 +53,13 @@ char *prg;
 #define GET_ID3LEN(x)	((((x)[0]&0x7f)<<21)|(((x)[1]&0x7f)<<14) \
 			 |(((x)[2]&0x7f)<<7)|((x)[3]&0x7f))
 
+#define IS_SYNC(h)	(((h)&0xfff00000) == 0xfff00000)
+#define IS_MPEG(h)	(IS_SYNC(h) && table[((h)&0x000fffe0)>>9])
+#define IS_ID3v1(h)	(((h)&0xffffff00) == (('T'<<24)|('A'<<16)|('G'<<8)))
+#define IS_ID3v2(h)	(((h)&0xffffff00) == (('I'<<24)|('D'<<16)|('3'<<8)))
+#define IS_ID3(h)	(IS_ID3v1(h) || IS_ID3v2(h))
+#define IS_VALID(h)	(IS_MPEG(h) || IS_ID3(h))
+
 static void crc_init(void);
 static void crc_update(int *crc, unsigned char b);
 static int crc_frame(unsigned long h, unsigned char *data, int len);
@@ -136,17 +143,20 @@ process_file(FILE *f, char *fname)
     h_old = 0;
     while((len < 0 || l < len-3) && fread(b, 4, 1, f) > 0) {
 	h = GET_LONG(b);
-	
-	if ((h&0xfff00000) == 0xfff00000) {
-	    /* valid header */
+
+    resynced:
+	if (IS_SYNC(h)) {
 	    j = table[(h&0x000fffe0)>>9];
 	    if (j == 0) {
 		out(l, "illegal header 0x%lx (%s)", h, mem2asc(b, 4));
-		break;
+		if (resync(&l, &h, f) < 0)
+		    break;
+		else
+		    goto resynced;
 	    }
 	}
 	else {
-	    if ((h&0xffffff00) == (('T'<<24)|('A'<<16)|('G'<<8))) {
+	    if (IS_ID3v1(h)) {
 		if (fread(b+4, 124, 1, f) != 1) {
 		    out(l, "ID3v1 tag (in middle of song)");
 		    printf("    short tag\n");
@@ -157,7 +167,7 @@ process_file(FILE *f, char *fname)
 		l += 128;
 		continue;
 	    }
-	    else if ((h&0xffffff00) == (('I'<<24)|('D'<<16)|('3'<<8))) {
+	    else if (IS_ID3v2(h)) {
 		if (fread(b+4, 6, 1, f) != 1) {
 		    out(l, "ID3v2.%c", (h&0xff)+'0');
 		    printf("    short header\n");
@@ -174,10 +184,12 @@ process_file(FILE *f, char *fname)
 		continue;
 	    }
 	    else {
-		/* not recognized */
+		/* no sync */
 		out(l, "illegal header 0x%lx (%s)", h, mem2asc(b, 4));
-		/* resync? */
-		break;
+		if (resync(&l, &h, f) < 0)
+		    break;
+		else
+		    goto resynced;
 	    }
 	}
 	if (j>4) {
@@ -185,7 +197,6 @@ process_file(FILE *f, char *fname)
 	    if (len >= 0 && l+n > len)
 		n = len-l;
 	}
-	/* read complete frame */
 
 	if (h_old == 0)
 	    print_header(l, h);
@@ -603,3 +614,30 @@ get_sideinfo(struct sideinfo *si, unsigned long h, unsigned char *b, int blen)
 	return III_get_side_info_1(si, stereo, ms_stereo, sfreq, 0);
 }
     
+
+
+#define MAX_SKIP  65536
+
+int
+resync(long *lp, unsigned long *hp, FILE *f)
+{
+    unsigned long h;
+    long l, try;
+    int c;
+
+    l = *lp;
+    h = *hp;
+
+    for (try=1; (c=getc(f))!=EOF && try<MAX_SKIP; try++,l++) {
+	h = (h<<8)|(c&0xff);
+	if (IS_VALID(h)) {
+	    out(l, "skipping %d bytes", try);
+	    *hp = h;
+	    *lp = l;
+	    return 0;	    
+	}
+    }
+
+    out(l, "no sync found in 64k, bailing out");
+    return -1;
+}
