@@ -5,13 +5,13 @@
 + skipping 1 byte (not bytes)
 + better handling of bit reservoir when skipping (and with tags in middle)
 + different format for header changes (at least if !OUT_HEAD1ST)
-- handle header change to vbr better
-- handle end of vbr not end of stream
 - split into multiple files (begun)
 - compare fast-info calculations with frame-count calculations
 - doku
 - VBR: check frames and bytes against actual values, warn about tags in middle
 - VBR: check toc against frame positions in stream
+- VBR: handle header change to vbr better
+- VBR: handle end of vbr not end of stream
 - frame data length and crc for layer 2
 - validity check on side info / main data
 - check integrity of tags
