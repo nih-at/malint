@@ -14,9 +14,13 @@ int table[2048];
 */
 
 #define GET_LONG(x)	(((x)[0]<<24)|((x)[1]<<16)|((x)[2]<<8)|(x)[3])
+#define GET_INT3(x)	(((x)[0]<<16)|((x)[1]<<8)|(x)[2])
+#define GET_ID3LEN(x)	((((x)[0]&0x7f)<<21)|(((x)[1]&0x7f)<<14) \
+			 |(((x)[2]&0x7f)<<7)|((x)[3]&0x7f))
 
 void parse_tag_v2(unsigned char *data, int len);
-void parse_v1(char *data);
+void parse_tag_v22(unsigned char *data, int len);
+void parse_tag_v1(char *data);
 
 
 
@@ -60,8 +64,9 @@ main(int argc, char **argv)
 			printf("    short tag\n");
 			break;
 		    }
-		    parse_v1(b);
-		    j = 4;
+		    parse_tag_v1(b);
+		    j = 0;
+		    l += 128;
 		}
 		else if ((h&0xffffff00) == (('I'<<24)|('D'<<16)|('3'<<8))) {
 		    printf("%s: ID3v2 tag at %ld\n", argv[i], l);
@@ -70,14 +75,15 @@ main(int argc, char **argv)
 			printf("    short header\n");
 			break;
 		    }
-		    j = GET_LONG(b+6);
+		    j = GET_ID3LEN(b+6);
 		    if (fread(b+10, j, 1, f) != 1) {
 			/* XXX: short tag */
 			printf("    short tag\n");
 			break;
 		    }
 		    parse_tag_v2(b, j);
-		    j = 4;
+		    l += j;
+		    j = 0;
 		}
 		else {
 		    /* not recognized */
@@ -87,10 +93,12 @@ main(int argc, char **argv)
 		    break;
 		}
 	    }
-	    if ((n=fread(b, 1, j-4, f)) != j-4) {
-		printf("%s: short last frame at %ld: %d of %d bytes\n",
-		       argv[i], l, n+4, j);
-		break;
+	    if (j>4) {
+		if ((n=fread(b, 1, j-4, f)) != j-4) {
+		    printf("%s: short last frame at %ld: %d of %d bytes\n",
+			   argv[i], l, n+4, j);
+		    break;
+		}
 	    }
 	    l += j;
 	}
@@ -102,12 +110,12 @@ main(int argc, char **argv)
 
 
 static char *__tags[] = {
-    "TALB", "Album",
-    "TIT2", "Title",
-    "TPE1", "Artist",
-    "TPOS", "CD",
-    "TRCK", "Track",
-    "TYER", "Year",
+    "TALB", "TAL", "Album",
+    "TIT2", "TT2", "Title",
+    "TPE1", "TP1", "Artist",
+    "TPOS", "TPA", "CD",
+    "TRCK", "TRK", "Track",
+    "TYER", "TYE", "Year",
     NULL, NULL
 };
 
@@ -117,7 +125,13 @@ parse_tag_v2(unsigned char *data, int len)
     char *p, *end;
     int i;
 
-    if (data[3] > 3) {
+    if (data[5]&0x80) {
+	printf("   unsynchronization not supported\n");
+	return;
+    }
+    if (data[3] == 2)
+	parse_tag_v22(data, len);
+    else if (data[3] != 3) {
 	printf("   unsupported version 2.%d.%d\n",
 	       data[3], data[4]);
 	return;
@@ -138,13 +152,46 @@ parse_tag_v2(unsigned char *data, int len)
 	len = GET_LONG(p+4);
 	if (len < 0)
 	    break;
-	for (i=0; __tags[i]; i+=2)
+	for (i=0; __tags[i]; i+=3)
 	    if (strncmp(p, __tags[i], 4) == 0) {
 		if (p[10] == 0) 
-		    printf("   %s:\t%.*s\n", __tags[i+1], len-1, p+11);
+		    printf("   %s:\t%.*s\n", __tags[i+2], len-1, p+11);
 		break;
 	    }
 	p += len + 10;
+    }
+}
+
+
+
+void
+parse_tag_v22(unsigned char *data, int len)
+{
+    char *p, *end;
+    int i;
+
+    if (data[5] & 0x40) {
+	printf("    version 2.2 compression not supported\n");
+	return;
+    }
+
+    p = data + 10;
+
+    end = data + len + 10;
+
+    while (p < end) {
+	if (memcmp(p, "\0\0\0", 3) == 0)
+	    break;
+	len = GET_INT3(p+3);
+	if (len < 0)
+	    break;
+	for (i=0; __tags[i]; i+=3)
+	    if (strncmp(p, __tags[i+1], 3) == 0) {
+		if (p[6] == 0) 
+		    printf("   %s:\t%.*s\n", __tags[i+2], len-1, p+7);
+		break;
+	    }
+	p += len + 6;
     }
 }
 
@@ -167,7 +214,7 @@ print_field(char *data, int len)
 }
 
 void
-parse_v1(char *data)
+parse_tag_v1(char *data)
 {
     
     printf("   Artist:\t");
