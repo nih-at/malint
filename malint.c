@@ -193,6 +193,8 @@ main(int argc, char **argv)
 	    }
 	    
 	    process_file(f, argv[i]);
+
+	    fclose(f);
 	}
     }
     
