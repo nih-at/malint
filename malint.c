@@ -472,7 +472,7 @@ print_header(long pos, unsigned long h)
 	"no emphasis", "50/15 micro seconds", "", "CCITT J.17"
     };
 
-    out(pos, "MPEG %d layer %d%s, %dbps, %dkHz, %s%s (%d)%s%s%s%s",
+    out(pos, "MPEG %d layer %d%s, %dkbps, %dkHz, %s%s (%d)%s%s%s%s",
 	MPEG_VERSION(h), MPEG_LAYER(h),
 	MPEG_CRC(h) ? ", crc" : "",
 	MPEG_BITRATE(h), MPEG_SAMPFREQ(h)/1000,
