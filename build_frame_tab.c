@@ -88,16 +88,19 @@ build_length_table(void)
 	for (layer=1; layer<4; layer++) {
 	    for (bitrate=1; bitrate<15; bitrate++) {
 		for (samprate=0; samprate<3; samprate++) {
-		    l = (version==0
-			 ? (layer==1 ? 48000:144000)
-			 : (layer==1 ? 24000: 72000))
-			* _mp3_bit_tab[version==0][bitrate][layer-1]
-			/ _mp3_samp_tab[version][samprate];
+		    if (layer == 1)
+			l = ((version==0 ? 12000 : 6000)
+			     * _mp3_bit_tab[version==0][bitrate][0]
+			     / _mp3_samp_tab[version][samprate]) * 4;
+		    else
+			l = (version==0 ? 144000 : 72000)
+			    * _mp3_bit_tab[version==0][bitrate][layer-1]
+			    / _mp3_samp_tab[version][samprate];
 		    i = (samprate<<1) | (bitrate<<3) | ((4-layer)<<8)
 			| ((3-version)<<10);
-		    _mp3_flen_tab[i] = _mp3_flen_tab[i|(1<<7)]
-			= (layer==1) ? l-3 : l;
-		    _mp3_flen_tab[i|1] = _mp3_flen_tab[i|(1<<7)|1] = l+1;
+		    _mp3_flen_tab[i] = _mp3_flen_tab[i|(1<<7)] = l;
+		    _mp3_flen_tab[i|1] = _mp3_flen_tab[i|(1<<7)|1]
+			= l + (layer==1 ? 4 : 1) ;
 		}
 	    }
 	}
