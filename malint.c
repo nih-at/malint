@@ -49,21 +49,26 @@ static char help_head[] = "MPEG Audio lint (" PACKAGE ") " VERSION
 
 #define OPTIONS	"hVIEcCpPgGdDN:"
 
+#define OP_NOTC	256
+#define OP_TC	257
+
 struct option options[] = {
-    { "help",         0, 0, 'h' },
-    { "version",      0, 0, 'V' },
-    { "fast-info",    0, 0, 'I' },
-    { "error",        0, 0, 'E' },
-    { "no-crc",       0, 0, 'C' },
-    { "crc",          0, 0, 'c' },
-    { "padding",      0, 0, 'p' },
-    { "no-padding",   0, 0, 'P' },
-    { "gap",          0, 0, 'g' },
-    { "no-gap",       0, 0, 'G' },
-    { "duration",     0, 0, 'd' },
-    { "no-duration",  0, 0, 'D' },
-    { "resync-count", 1, 0, 'N' },
-    { NULL,           0, 0, 0   }
+    { "help",            0, 0, 'h'     },
+    { "version",         0, 0, 'V'     },
+    { "fast-info",       0, 0, 'I'     },
+    { "error",           0, 0, 'E'     },
+    { "no-crc",          0, 0, 'C'     },
+    { "crc",             0, 0, 'c'     },
+    { "padding",         0, 0, 'p'     },
+    { "no-padding",      0, 0, 'P'     },
+    { "gap",             0, 0, 'g'     },
+    { "no-gap",          0, 0, 'G'     },
+    { "duration",        0, 0, 'd'     },
+    { "no-duration",     0, 0, 'D'     },
+    { "resync-count",    1, 0, 'N'     },
+    { "no-tag-contents", 0, 0, OP_NOTC },
+    { "tag-contents",    0, 0, OP_TC   },
+    { NULL,              0, 0, 0       }
 };
 
 static char usage[] = "usage: %s [-hV] [-N MIN] [-IEcCpPgGdD] [FILE ...]\n";
@@ -81,6 +86,8 @@ static char help_tail[] = "\n\
   -G, --no-gap             do not check for unused bytes in bit reservoir\n\
   -d, --duration           display duration of song\n\
   -D, --no-duration        do not display duration of song\n\
+      --tag-contents       display contents of ID3 tags\n\
+      --no-tag-contents    do not display contents of ID3 tags\n\
   -N, --resync-count N     require at least N frames to accept resync\n\
 \n\
 Report bugs to <dillo@giga.or.at>.\n";
@@ -94,7 +101,8 @@ int min_consec;		/* number of consecutive headers to accept a resync */
 
 
 int process_file(FILE *f, char *fname);
-int resync(long *lp, unsigned long *hp, struct inbuf *ib, int inframe);
+int resync(long *lp, unsigned long *hp, struct inbuf *ib,
+	   int inframe, int maxtry);
 
 int check_l1(long pos, unsigned long h, unsigned char *b, int blen, int flen);
 int check_l3(long pos, unsigned long h, unsigned char *b, int blen,
@@ -161,6 +169,12 @@ main(int argc, char **argv)
 	case 'D':
 	    output &= ~OUT_PLAYTIME;
 	    break;
+	case OP_TC:
+	    output |= OUT_TAG_CONTENTS;
+	    break;
+	case OP_NOTC:
+	    output &= ~OUT_TAG_CONTENTS;
+	    break;
 
 	case 'N':
 	    min_consec = atoi(optarg);
@@ -223,7 +237,7 @@ process_file(FILE *f, char *fname)
 	if (fread(b, 128, 1, f) == 1) {
 	    if (strncmp(b, "TAG", 3) == 0) {
 		endtag_found = 1;
-		if (output & OUT_TAG)
+		if (output & OUT_M_TAG)
 		    parse_tag_v1(len, b, 0);
 	    }
 	    else
@@ -259,7 +273,7 @@ process_file(FILE *f, char *fname)
 	    if (!IS_VALID(h_next)) {
 		lresync = l;
 		h_next = h;
-		if (resync(&lresync, &h_next, ib, 1) >= 0)
+		if (resync(&lresync, &h_next, ib, 1, flen) >= 0)
 		    n = ((lresync-l) < flen ? (lresync-l) : flen);
 		if (IS_ID3v1(h_next)) {
 		    if (inbuf_getc(lresync+128, ib) == -1)
@@ -366,7 +380,7 @@ process_file(FILE *f, char *fname)
 		    break;
 		}
 		else
-		    if (output & OUT_TAG) {
+		    if (output & OUT_M_TAG) {
 			parse_tag_v1(l, p,
 				     endtag_found
 				     || (inbuf_getc(l+128, ib) != -1));
@@ -393,7 +407,7 @@ process_file(FILE *f, char *fname)
 		    }
 		    break;
 		}
-		if (output & OUT_TAG)
+		if (output & OUT_M_TAG)
 		    parse_tag_v2(l, p, n);
 		l += n;
 		continue;
@@ -402,7 +416,7 @@ process_file(FILE *f, char *fname)
 		/* no sync */
 		if (output & OUT_HEAD_ILLEGAL)
 		    out(l, "illegal header 0x%08lx (%s)", h, ulong2asc(h));
-		if (resync(&l, &h, ib, 0) < 0)
+		if (resync(&l, &h, ib, 0, 0) < 0)
 		    break;
 		else
 		    goto resynced;
@@ -641,7 +655,7 @@ get_sideinfo(struct sideinfo *si, unsigned long h, unsigned char *b, int blen)
 #define MAX_SKIP  65536
 
 int
-resync(long *lp, unsigned long *hp, struct inbuf *ib, int inframe)
+resync(long *lp, unsigned long *hp, struct inbuf *ib, int inframe, int maxtry)
 {
     unsigned long h, h_next;
     long l, try, l2;
@@ -650,9 +664,10 @@ resync(long *lp, unsigned long *hp, struct inbuf *ib, int inframe)
     l = *lp;
     h = *hp;
 
-    for (try=1;
-	 (c=inbuf_getc(l+try+3, ib))>=0 && try<(inframe ? 2000 : MAX_SKIP);
-	 try++) {
+    if (!maxtry)
+	maxtry = MAX_SKIP;
+
+    for (try=1; (c=inbuf_getc(l+try+3, ib))>=0 && try<maxtry; try++) {
 	h = ((h<<8)|(c&0xff)) & 0xffffffff;
 
 	if (IS_VALID(h)) {
