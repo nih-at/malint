@@ -174,7 +174,8 @@ process_file(FILE *f, char *fname)
 	    if (len >= 0 && l+n > len)
 		n = len-l;
 	    if (n < j) {
-		out(l, "short last frame: %d of %d bytes", n, j);
+		out(l, "short last frame: %d of %d bytes (%d missing)",
+		    n, j, j-n);
 		break;
 	    }
 	}
@@ -302,8 +303,8 @@ parse_tag_v22(unsigned char *data, int len)
 
 
 
-static void
-print_field(char *data, int len)
+static int
+field_len(char *data, int len)
 {
     int l;
 
@@ -315,7 +316,7 @@ print_field(char *data, int len)
 	    ;
     }
 
-    printf("%.*s\n", l, data);
+    return l;
 }
 
 
@@ -323,22 +324,32 @@ print_field(char *data, int len)
 void
 parse_tag_v1(long pos, char *data)
 {
-    int v11;
+    static struct {
+	char *name;
+	int start, len;
+    } field[] = {
+	{ "Artist", 33, 30 },
+	{ "Title",   3, 30 },
+	{ "Album",  63, 30 },
+	{ "Year",   93,  4 },
+	{ NULL,      0,  0 }
+    };
+
+    int v11, i, len;
 
     v11 = data[126] && data[125] == 0;
 
     out(pos, "ID3v1%s tag", v11 ? ".1" : "");
 
-    printf("   Artist:\t");
-    print_field(data+33, 30);
-    printf("   Title:\t");
-    print_field(data+3, 30);
-    printf("   Album:\t");
-    print_field(data+63, 30);
+    for (i=0; field[i].name; i++) {
+	len = field_len(data+field[i].start, field[i].len);
+	if (len > 0) {
+	    printf("   %s:\t%.*s\n",
+		   field[i].name, len, data+field[i].start);
+	}
+    }
     if (v11)
 	printf("   Track:\t%d\n", data[126]);
-    printf("   Year:\t");
-    print_field(data+93, 4);
 }
 
 
@@ -472,12 +483,12 @@ print_header(long pos, unsigned long h)
 	"no emphasis", "50/15 micro seconds", "", "CCITT J.17"
     };
 
-    out(pos, "MPEG %d layer %d%s, %dkbps, %dkHz, %s%s (%d)%s%s%s%s",
+    out(pos, "MPEG %d layer %d%s, %dkbps, %dkHz, %s%s%s%s%s%s",
 	MPEG_VERSION(h), MPEG_LAYER(h),
 	MPEG_CRC(h) ? ", crc" : "",
 	MPEG_BITRATE(h), MPEG_SAMPFREQ(h)/1000,
 	MPEG_PRIV(h)? ", priv" : "",
-	mode[MPEG_MODE(h)], MPEG_MODEEXT(h),
+	mode[MPEG_MODE(h)],
 	MPEG_COPY(h) ? ", copyright" : "",
 	MPEG_ORIG(h) ? ", original" : "",
 	MPEG_EMPH(h) ? ", " : "",
