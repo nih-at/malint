@@ -19,14 +19,14 @@ about the streams and any format violations it finds.
 
 The output for each file is grouped under a line with that file's
 name.  The diagnostic and informative messages are preceded with the
-byte offset it pertains to.
+byte offset they pertain to.
 .Pp
-.Sy Options
+.Ss Options
 For options that specify what test should be performed, a lower case
-letter turns the test on, an upperr case letter turns it off.  For
+letter turns the test on, and an upper case letter turns it off.  For
 long options, prepend 
 .Ar no-
-to turn it off.
+to turn them off.
 .Pp
 The options are as follows:
 .Bl -tag -width "--no-tag-contents" -compact
@@ -66,8 +66,7 @@ Display help message.
 Display only info (bit rate, length, tags at beginning and end), do
 not parse whole file.
 .It Fl N
-.It Fl -resync-count
-.Ar MIN
+.It Fl -resync-count Ar MIN
 If the stream gets out of sync, require at least 
 .Ar MIN
 consecutive frames to accept resync.
@@ -92,10 +91,12 @@ Do not display contents of ID3 tags.
 Display version information.
 .El
 .Pp
-.Sy Error and warning messages
+.Ss Error and warning messages
 .Bl -diag
 .It CRC error (calc:XXXX != file:YYYY)
-The CRC calculated by malint for this frame (XXXX) differs from the
+The CRC calculated by
+.Nm
+for this frame (XXXX) differs from the
 CRC stored in the stream (YYYY).
 .It frame data overflows frame (M > N)
 The length of data in this frame (M, calculated from side-info or
@@ -114,7 +115,7 @@ the previous frame only left R bytes as bit reservoir.
 .It gap in bit stream (N < R)
 Only N of the R bytes in the bit reservoir are used.  This is not an
 error, and some encoder limit the amount of bit reservoir they'll use
-(e.g. to one frame), gaps if it becomes bigger.
+(e.g. to one frame), and thus create gaps if it becomes bigger.
 .It skipping N bytes
 N bytes were skipped during resynchronization.
 .It skipping N bytes, reaching EOF
@@ -128,16 +129,16 @@ The [last] frame should be L bytes long, but was found to be only N
 bytes long.  D bytes of frame data and P bytes of padding (giving M
 bytes total) are missing.
 .It padding missing from [last] frame (P bytes)
-All P bytes of padding was found to be missing from the [last] frame.
+All P bytes of padding were found to be missing from the [last] frame.
 This shouldn't cause problems if it is the last frame.
 .It padding missing from [last] frame (M of P bytes)
 M of P bytes padding were found to be missing from the [last] frame.
 This shouldn't cause problems if it is the last frame.
 .El
-.Sy Info messages
+.Ss Info messages
 .Bl -diag
 .It MPEG V layer L ...
-Tells the MPEG version, audio layer and other parameters contained in
+Shows the MPEG version, audio layer and other parameters contained in
 the frame header.  This is also output if header parameters change
 within the stream.
 .It play time: HH:MM:SS (N frames)
