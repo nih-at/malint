@@ -202,7 +202,6 @@ inbuf_getlong(unsigned long *lp, long pos, struct inbuf *inb)
 int
 inbuf_copy(unsigned char **b, long pos, long len, struct inbuf *inb)
 {
-    long keep;
     int n;
 
     if (pos < inb->first)
