@@ -1,4 +1,5 @@
 + release
++ regression tests
 + do not try to read directories
 + documentation
 + add missing messages to man page
