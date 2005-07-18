@@ -1,0 +1,232 @@
+.\" Converted with mdoc2man 0.2
+.\" from NiH: malint.mdoc,v 1.1 2005/07/18 22:24:08 wiz Exp 
+.\" $NiH: malint.mdoc,v 1.1 2005/07/18 22:24:08 wiz Exp $
+.TH MALINT 1 "November 4, 2004" NiH
+.SH "NAME"
+malint \- validate MPEG audio streams
+.SH "SYNOPSIS"
+.B malint
+[\fB-cCdDEfFgGhIpPtTV\fR]
+[\fB-N\fR \fBMIN\fR]
+[\fBfile ...\fR]
+.SH "DESCRIPTION"
+The
+.B malint
+utility parses and validates the MPEG audio streams named in the file
+arguments (or standard input if none are given) and prints information
+about the streams and any format violations it finds.
+.PP
+The output for each file is grouped under a line with that file's
+name.  The diagnostic and informative messages are preceded with the
+byte offset they pertain to.
+.SS "Options"
+For options that specify what test should be performed, a lower case
+letter turns the test on, and an upper case letter turns it off.  For
+long options, prepend
+\fBno-\fR
+to turn them off.
+.PP
+The options are as follows:
+.RS
+.TP 21
+\fB-c\fR
+.TP 21
+\fB--crc\fR
+Check CRC fields of the MPEG stream (default).
+.TP 21
+\fB-C\fR
+.TP 21
+\fB--no-crc\fR
+Don't check CRC fields of the MPEG stream.
+.TP 21
+\fB-d\fR
+.TP 21
+\fB--duration\fR
+Display duration of the stream (default).
+.TP 21
+\fB-D\fR
+.TP 21
+\fB--no-duration\fR
+Don't display duration of the stream.
+.TP 21
+\fB-E\fR
+.TP 21
+\fB--error\fR
+Only display error diagnostics: ignore some warnings and don't display
+informational messages (tags and duration of the stream).
+.TP 21
+\fB-f\fR
+.TP 21
+\fB--header-change\fR
+Display frame header field changes that occur in the stream (default).
+.TP 21
+\fB-F\fR
+.TP 21
+\fB--no-header-change\fR
+Don't display changes in frame header fields.
+.TP 21
+\fB-g\fR
+.TP 21
+\fB--gap\fR
+Check for unused bytes in bit reservoir.
+.TP 21
+\fB-G\fR
+.TP 21
+\fB--no-gap\fR
+Don't check for unused bytes in bit reservoir (default).
+.TP 21
+\fB-h\fR
+.TP 21
+\fB--help\fR
+Display help message.
+.TP 21
+\fB-I\fR
+.TP 21
+\fB--fast-info\fR
+Display only info (bit rate, length, tags at beginning and end), do
+not parse whole file.
+.TP 21
+\fB-N\fR
+.TP 21
+\fB--resync-count\fR \fBMIN\fR
+If the stream gets out of sync, require at least
+\fBMIN\fR
+consecutive frames to accept resync.
+.TP 21
+\fB-p\fR
+.TP 21
+\fB--padding\fR
+Check for missing padding in last frame (default).
+.TP 21
+\fB-P\fR
+.TP 21
+\fB--no-padding\fR
+Don't check for missing padding in last frame.
+.TP 21
+\fB-t\fR
+.TP 21
+\fB--tag\fR
+Display information about ID3 tags (default).
+.TP 21
+\fB-T\fR
+.TP 21
+\fB--no-tag\fR
+Don't display information about ID3 tags.
+.TP 21
+\fB--tag-contents\fR
+Display contents of ID3 tags (default).  If tags are not displayed,
+their contents aren't displayed, either.
+.TP 21
+\fB--no-tag-contents\fR
+Do not display contents of ID3 tags.  If tags are displayed, only
+their position and version is shown.
+.TP 21
+\fB-V\fR
+.TP 21
+\fB--version\fR
+Display version information.
+.RE
+.SS "Error and warning messages"
+.RS
+.TP 21
+CRC error (calc:XXXX!= file:YYYY)
+The CRC calculated by
+.B malint
+for this frame (XXXX) differs from the
+CRC stored in the stream (YYYY).
+.TP 21
+frame data overflows frame (M > N)
+The length of data in this frame (M, calculated from side-info or
+bit-alloc) is more than the frame can contain (N).
+.TP 21
+illegal header XXXXXXXX (AAAA)
+A frame header was not found where expected, instead the four bytes
+XXXXXXXX (in hex, AAAA in ASCII) were found.
+.TP 21
+bit reservoir spans across ID3 tag
+Parts of the bit reservoir are located before an ID3 tag, whereas this
+frame is located after it.  This is dubious at best, since many
+players do not account for tags when finding the bit reservoir for a
+frame.
+.TP 21
+main_data_begin overflows bit reservoir (N > R)
+main_data_begin says this frame uses N bytes of the bit reservoir, but
+the previous frame only left R bytes as bit reservoir.
+.TP 21
+gap in bit stream (N < R)
+Only N of the R bytes in the bit reservoir are used.  This is not an
+error, and some encoder limit the amount of bit reservoir they'll use
+(e.g. to one frame), and thus create gaps if it becomes bigger.
+.TP 21
+skipping N bytes
+N bytes were skipped during resynchronization.
+.TP 21
+skipping N bytes, reaching EOF
+N bytes were skipped during resynchronization, thus reaching the end
+of the stream.  Resynchronization failed.
+.TP 21
+no sync found in 1mb, bailing out
+no sync was found while scanning 1 megabyte.  Resynchronization was
+given up.
+.TP 21
+short [last] frame N of L bytes (D+P=M missing)
+The [last] frame should be L bytes long, but was found to be only N
+bytes long.  D bytes of frame data and P bytes of padding (giving M
+bytes total) are missing.
+.TP 21
+padding missing from [last] frame (P bytes)
+All P bytes of padding were found to be missing from the [last] frame.
+This shouldn't cause problems if it is the last frame.
+.TP 21
+padding missing from [last] frame (M of P bytes)
+M of P bytes padding were found to be missing from the [last] frame.
+This shouldn't cause problems if it is the last frame.
+.\" vbr toc not strictly increasing
+.\" vbr tag with unsupported flags: XXXXXXXX
+.\"   currently never printed
+.\" short vbr tag (M < N)
+.\" cannot parse side info
+.\" inbuf overflow after N bytes, bailing out
+.RE
+.SS "Info messages"
+.RS
+.TP 21
+MPEG V layer L ...
+Shows the MPEG version, audio layer and other parameters contained in
+the frame header.  This is also output if header parameters change
+within the stream.
+.TP 21
+play time: HH:MM:SS (N frames)
+Play time of this stream is HH:MM:SS, it contains N frames.  (The play
+time calculation does not work if the sampling frequency is not
+constant throughout the stream.)
+.TP 21
+play time: HH:MM:SS (according to vbr tag)
+If using fast info mode, the number of frames is not counted.
+According to the VBR tag, play time of this stream is HH:MM:SS.
+.TP 21
+play time: HH:MM:SS (aproximately)
+If using fast info mode, the number of frames is not counted.  Based
+on the assumption that bit rate and sampling frequency are constant
+throughout the stream, the number of frames is approximated as
+file-length/frame-length, giving a play time of HH:MM:SS.
+.TP 21
+ID3vX
+ID3 tag version X found.
+.TP 21
+ID3v1 tag (in middle of file)
+ID3v1 tags should be stored in the last 128 bytes of the stream.  This
+tag was found in the middle of the stream, which might not be found by
+some players, or even cause problems (loss of sync).
+.RE
+.SH "AUTHORS"
+Dieter Baron <dillo@giga.or.at>
+.SH "BUGS"
+VBR only works if the VBR tag is at the beginning of the stream
+(possibly after an ID3 tag) and spans to the end of the stream.
+.PP
+ID3v2 tags with unsynchronization are not handled properly.
+.PP
+Layer 2 CRC calculation is not performed.
+.PP
+Validation of the huffman data in layer 3 streams is not performed.
