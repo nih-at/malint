@@ -1,3 +1,5 @@
+* check for iconv
+----------------
 * debug 48kHz silence m2a files created by toolame (only one frame found)
 + release
 + regression tests

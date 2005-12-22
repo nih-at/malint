@@ -1,6 +1,6 @@
 /*
   malint.c -- main file
-  Copyright (C) 2000 Dieter Baron
+  Copyright (C) 2000, 2005 Dieter Baron
 
   This file is part of malint, an MPEG Audio stream validator.
   The author can be contacted at <dillo@giga.or.at>
@@ -25,6 +25,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <getopt.h>
+#include <locale.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,7 +41,7 @@
 
 
 static char version_out[] = "MPEG Audio lint (" PACKAGE ") " VERSION "\n\
-Copyright (C) 2000 Dieter Baron\n"
+Copyright (C) 2005 Dieter Baron\n"
 PACKAGE " comes with ABSOLUTELY NO WARRANTY, to the extent permitted by law.\n\
 You may redistribute copies of\n"
 PACKAGE " under the terms of the GNU General Public License.\n\
@@ -136,6 +137,7 @@ main(int argc, char **argv)
 
     prg = argv[0];
 
+    setlocale(LC_ALL, "");
     build_length_table();
     crc_init();
 
