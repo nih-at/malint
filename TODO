@@ -19,7 +19,7 @@
 - different format for header changes (at least if !OUT_HEAD1ST)
 - id tag handling in own functions
 - check for short ID3v1 in middle of file
-- ID3v2 incremental parsing, unsynchronization support
+- ID3v2 incremental parsing, compression support, ID3v2.2 unsync support
 - split into multiple files (begun)
 - compare fast-info calculations with frame-count calculations
 - VBR: check frames and bytes against actual values, warn about tags in middle

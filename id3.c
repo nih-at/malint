@@ -25,6 +25,7 @@
 #include <iconv.h>
 #include <langinfo.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "malint.h"
@@ -56,12 +57,18 @@ static char *__encoding[] = {
 #define ID3_HEADER_FLAG_EXT_HEADER	0x40
 #define HEADER_FLAGS_UNSYNC		0x80
 
+#define ID3_FRAME_FLAG_GROUP		0x40
+#define ID3_FRAME_FLAG_COMPRESSION	0x08
+#define ID3_FRAME_FLAG_ENCRYPTION	0x04
+#define ID3_FRAME_FLAG_UNSYNC		0x02
+#define ID3_FRAME_FLAG_DATA_LEN		0x01
+
 static int field_len(char *data, int len, int dlen);
 static void parse_tag_v22(unsigned char *, int);
 static void parse_tag_v23(unsigned char *, int);
 static void parse_tag_v24(unsigned char *, int);
 static void process_tag_34(const unsigned char *, int);
-static char *unsynchronise(const unsigned char *, int, int *);
+static unsigned char *unsynchronise(const unsigned char *, int, int *);
 
 
 
@@ -148,9 +155,6 @@ parse_tag_v1(long pos, char *data, int n, int in_middle)
 void
 parse_tag_v2(long pos, unsigned char *data, int len)
 {
-    unsigned char *tagdata;
-    int taglen;
-
     if (!(output & OUT_TAG))
 	return;
 
@@ -159,30 +163,21 @@ parse_tag_v2(long pos, unsigned char *data, int len)
     if (!(output & OUT_TAG_CONTENTS))
 	return;
 
-    tagdata = data;
-    taglen = len;
-    if (data[5] & HEADER_FLAGS_UNSYNC)
-	if ((tagdata=unsynchronise(data, len, &taglen)) == NULL)
-	    return;
-
     switch (data[3]) {
     case 2:
-	parse_tag_v22(tagdata, taglen);
+	parse_tag_v22(data, len);
 	break;
     case 3:
-	parse_tag_v23(tagdata, taglen);
+	parse_tag_v23(data, len);
 	break;
     case 4:
-	parse_tag_v24(tagdata, taglen);
+	parse_tag_v24(data, len);
 	break;
     default:
 	printf("   unsupported version 2.%d.%d\n",
 	       data[3], data[4]);
 	break;
     }
-
-    if (tagdata != data)
-	free(tagdata);
 
     return;
 }
@@ -213,11 +208,15 @@ field_len(char *data, int len, int dlen)
 static void
 parse_tag_v22(unsigned char *data, int len)
 {
-    char *p, *end;
+    unsigned char *p, *end;
     int i;
 
     if (data[5] & 0x40) {
 	printf("    version 2.2 compression not supported\n");
+	return;
+    }
+    if (data[5] & 0x80) {
+	printf("    version 2.2 unsynchronisation not supported\n");
 	return;
     }
 
@@ -232,7 +231,7 @@ parse_tag_v22(unsigned char *data, int len)
 	if (len < 0)
 	    break;
 	for (i=0; __tags[i]; i+=3)
-	    if (strncmp(p, __tags[i+1], 3) == 0) {
+	    if (strncmp((char *)p, __tags[i+1], 3) == 0) {
 		if (p[6] == 0) 
 		    printf("   %s:\t%.*s\n", __tags[i+2], len-1, p+7);
 		break;
@@ -264,7 +263,11 @@ parse_tag_v23(unsigned char *data, int len)
 	len = GET_LONG(p+4);
 	if (len < 0)
 	    break;
-	process_tag_34(p, len+10);
+	if (p+len+10 > end)
+	    printf("   incomplete frame (missing %d bytes\n",
+		   (p+len+10)-end);
+	else
+	    process_tag_34(p, len+10);
 	p += len + 10;
     }
 }
@@ -291,7 +294,11 @@ parse_tag_v24(unsigned char *data, int len)
 	len = LONG_TO_ID3LEN(GET_LONG(p+4));
 	if (len < 0)
 	    break;
-	process_tag_34(p, len+10);
+	if (p+len+10 > end)
+	    printf("   incomplete frame (missing %d bytes\n",
+		   (p+len+10)-end);
+	else
+	    process_tag_34(p, len+10);
 	p += len + 10;
     }
 }
@@ -301,32 +308,79 @@ parse_tag_v24(unsigned char *data, int len)
 static void
 process_tag_34(const unsigned char *tag, int len)
 {
-    int i;
+    int i, start;
     iconv_t cd;
     char buf[128], *dst;
     const char *src;
     size_t srclen, dstlen, ret;
     char *codeset;
-    
+    const unsigned char *data;
+    unsigned char *tmp;
+    int dlen, dlind;
+
+    start = 10;
+
+    tmp = NULL;
+
+    if (tag[9] & ID3_FRAME_FLAG_GROUP)
+	start++;
+    if (tag[9] & ID3_FRAME_FLAG_COMPRESSION) {
+	printf("   version 2 compression not supported\n");
+	return;
+    }
+    if (tag[9] & ID3_FRAME_FLAG_ENCRYPTION) {
+	printf("   version 2 compression not supported\n");
+	return;
+    }
+    if (tag[9] & ID3_FRAME_FLAG_DATA_LEN) {
+	if (start+4 > len) {
+	    printf("   tag too short\n");
+	    return;
+	}
+	dlind = LONG_TO_ID3LEN(GET_LONG(tag+start));
+	start += 4;
+    }
+
+    if (start >= len) {
+	printf("   tag without payload\n");
+	return;
+    }
+
+    if (tag[9] & ID3_FRAME_FLAG_UNSYNC) {
+	tmp = unsynchronise(tag+start, len-start, &dlen);
+	if (tmp == NULL)
+	    return;
+	data = tmp;
+    }
+    else {
+	data = tag+start;
+	dlen = len-start;
+    }
+    if (tag[9] & ID3_FRAME_FLAG_DATA_LEN) {
+	if (dlen != dlind)
+	    printf("  incorrect data length indicator (%d, should be %d)\n",
+		   dlind, dlen);
+    }
+
     for (i=0; __tags[i]; i+=3)
-	if (strncmp(tag, __tags[i], 4) == 0) {
+	if (strncmp((char *)tag, __tags[i], 4) == 0) {
 	    printf("   %s:\t", __tags[i+2]);
-	    if (tag[10] > ID3_ENCODING_MAX) {
-		printf("[unknown encoding %d]\n", tag[10]);
+	    if (data[0] > ID3_ENCODING_MAX) {
+		printf("[unknown encoding %d]\n", data[0]);
 		return;
 	    }
 
 	    codeset = nl_langinfo(CODESET);
-	    cd = iconv_open(codeset, __encoding[tag[10]]);
+	    cd = iconv_open(codeset, __encoding[data[0]]);
 	    if (cd == (iconv_t)-1) {
-		printf("[unsupported encoding %s]\n", __encoding[tag[10]]);
+		printf("[unsupported encoding %s]\n", __encoding[data[0]]);
 		return;
 	    }
 
-	    printf("[%s] ", __encoding[tag[10]]);
+	    printf("[%s] ", __encoding[data[0]]);
 
-	    srclen = len-11;
-	    src = tag+11;
+	    srclen = dlen-1;
+	    src = (char *)data+1;
 
 	    while (srclen > 0) {
 		dst = buf;
@@ -344,9 +398,14 @@ process_tag_34(const unsigned char *tag, int len)
 	    putchar('\n');
 	    break;
 	}
+
+    if (tmp)
+	free(tmp);
 }
 
-static char *
+
+
+static unsigned char *
 unsynchronise(const unsigned char *data, int len, int *taglenp)
 {
     unsigned char *tagdata, *p;
@@ -358,17 +417,20 @@ unsynchronise(const unsigned char *data, int len, int *taglenp)
     p = tagdata;
     for (i=0; i<len; i++) {
 	*p++ = data[i];
-	if ((i == len-1) || (data[i] != 0xFF) || (data[i+1] != 0x00))
+	
+	if ((i == len-1) || (data[i] != 0xff) || (data[i+1] != 0x00))
 	    continue;
 
 	if (i == len-2) {
 	    printf("    incomplete unsynchronisation at end of data\n");
 	    continue;
 	}
+
 	if ((data[i+2] != 0x00) && ((data[i+2]&0xe0) != 0xe0))
-	    printf("    invalid unsynchronisation data 0x%.2x%.2x%.2x\n",
+	    printf("    invalid unsynchronisation sequence 0x%02x%02x%02x\n",
 		data[i], data[i+1], data[i+2]);
-	/* skip 0x00 */
+
+	/* remove unsynchronization */
 	i++;
     }
 

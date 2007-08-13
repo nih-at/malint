@@ -260,7 +260,7 @@ process_file(FILE *f, char *fname)
     if (fseek(f, -128, SEEK_END) >= 0) {
 	len = ftell(f);
 	if (fread(b, 128, 1, f) == 1) {
-	    if (strncmp(b, "TAG", 3) == 0) {
+	    if (strncmp((char *)b, "TAG", 3) == 0) {
 		endtag_found = 1;
 		if (output & OUT_M_TAG)
 		    parse_tag_v1(len, b, 128, 0);
