@@ -350,23 +350,27 @@ static char *
 unsynchronise(const unsigned char *data, int len, int *taglenp)
 {
     unsigned char *tagdata, *p;
+    int i;
 
     if ((tagdata=(unsigned char *)malloc(len)) == NULL)
 	return NULL;
-    memcpy(tagdata, data, len);
 
     p = tagdata;
-    while ((p=memchr(p, 0xFF, tagdata+len-p)) != NULL) {
-	p++;
-	if (*p != 0x00)
+    for (i=0; i<len; i++) {
+	if ((data[i] != 0xFF) || (data[i+1] != 0x00)) {
+	    *p = data[i];
+	    p++;
 	    continue;
-
-	/* unsynchronisation tag, remove 0x00 */
-	memmove(p, p+1, tagdata+len-p);
-	len--;
+	}
+	if ((data[i+2] != 0x00) && ((data[i+2]&0xe0) != 0xe0))
+	    printf("    invalid unsynchronisation of 0x%.2x%.2x%.2x\n",
+		data[i], data[i+1], data[i+2]);
+	*p++ = data[i];
+	/* skip 0x00 */
+	i++;
     }
 
-    *taglenp = len;
+    *taglenp = p - tagdata;
     return tagdata;
 }
 
