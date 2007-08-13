@@ -357,15 +357,17 @@ unsynchronise(const unsigned char *data, int len, int *taglenp)
 
     p = tagdata;
     for (i=0; i<len; i++) {
-	if ((data[i] != 0xFF) || (data[i+1] != 0x00)) {
-	    *p = data[i];
-	    p++;
+	*p++ = data[i];
+	if ((i == len-1) || (data[i] != 0xFF) || (data[i+1] != 0x00))
+	    continue;
+
+	if (i == len-2) {
+	    printf("    invalid unsynchronisation at end of data\n");
 	    continue;
 	}
 	if ((data[i+2] != 0x00) && ((data[i+2]&0xe0) != 0xe0))
-	    printf("    invalid unsynchronisation of 0x%.2x%.2x%.2x\n",
+	    printf("    invalid unsynchronisation data 0x%.2x%.2x%.2x\n",
 		data[i], data[i+1], data[i+2]);
-	*p++ = data[i];
 	/* skip 0x00 */
 	i++;
     }
