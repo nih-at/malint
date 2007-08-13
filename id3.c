@@ -367,14 +367,14 @@ process_tag_34(const unsigned char *tag, int len)
 	    printf("   %s:\t", __tags[i+2]);
 	    if (data[0] > ID3_ENCODING_MAX) {
 		printf("[unknown encoding %d]\n", data[0]);
-		return;
+		break;
 	    }
 
 	    codeset = nl_langinfo(CODESET);
 	    cd = iconv_open(codeset, __encoding[data[0]]);
 	    if (cd == (iconv_t)-1) {
 		printf("[unsupported encoding %s]\n", __encoding[data[0]]);
-		return;
+		break;
 	    }
 
 	    printf("[%s] ", __encoding[data[0]]);
