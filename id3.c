@@ -1,9 +1,9 @@
 /*
   id3.c -- ID3 tag functions
-  Copyright (C) 2000, 2005 Dieter Baron
+  Copyright (C) 2000-2007 Dieter Baron and Thomas Klausner
 
   This file is part of malint, an MPEG Audio stream validator.
-  The author can be contacted at <dillo@giga.or.at>
+  The authors can be contacted at <nih@giga.or.at>
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -61,6 +61,7 @@ static void parse_tag_v22(unsigned char *, int);
 static void parse_tag_v23(unsigned char *, int);
 static void parse_tag_v24(unsigned char *, int);
 static void process_tag_34(const unsigned char *, int);
+static char *unsynchronise(const unsigned char *, int, int *);
 
 
 
@@ -147,6 +148,9 @@ parse_tag_v1(long pos, char *data, int n, int in_middle)
 void
 parse_tag_v2(long pos, unsigned char *data, int len)
 {
+    unsigned char *tagdata;
+    int taglen;
+
     if (!(output & OUT_TAG))
 	return;
 
@@ -155,19 +159,21 @@ parse_tag_v2(long pos, unsigned char *data, int len)
     if (!(output & OUT_TAG_CONTENTS))
 	return;
 
-    if (data[5] & HEADER_FLAGS_UNSYNC) {
-	printf("   unsynchronization not supported\n");
-	return;
-    }
+    tagdata = data;
+    taglen = len;
+    if (data[5] & HEADER_FLAGS_UNSYNC)
+	if ((tagdata=unsynchronise(data, len, &taglen)) == NULL)
+	    return;
+
     switch (data[3]) {
     case 2:
-	parse_tag_v22(data, len);
+	parse_tag_v22(tagdata, taglen);
 	return;
     case 3:
-	parse_tag_v23(data, len);
+	parse_tag_v23(tagdata, taglen);
 	return;
     case 4:
-	parse_tag_v24(data, len);
+	parse_tag_v24(tagdata, taglen);
 	return;
     default:
 	printf("   unsupported version 2.%d.%d\n",
@@ -334,3 +340,28 @@ process_tag_34(const unsigned char *tag, int len)
 	    break;
 	}
 }
+
+static char *
+unsynchronise(const unsigned char *data, int len, int *taglenp)
+{
+    unsigned char *tagdata, *p;
+
+    if ((tagdata=(unsigned char *)malloc(len)) == NULL)
+	return NULL;
+    memcpy(tagdata, data, len);
+
+    p = tagdata;
+    while ((p=memchr(p, 0xFF, tagdata+len-p)) != NULL) {
+	p++;
+	if (*p != 0x00)
+	    continue;
+
+	/* unsynchronisation tag, remove 0x00 */
+	memmove(p, p+1, tagdata+len-p);
+	len--;
+    }
+
+    *taglenp = len;
+    return tagdata;
+}
+
