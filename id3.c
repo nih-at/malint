@@ -168,18 +168,23 @@ parse_tag_v2(long pos, unsigned char *data, int len)
     switch (data[3]) {
     case 2:
 	parse_tag_v22(tagdata, taglen);
-	return;
+	break;
     case 3:
 	parse_tag_v23(tagdata, taglen);
-	return;
+	break;
     case 4:
 	parse_tag_v24(tagdata, taglen);
-	return;
+	break;
     default:
 	printf("   unsupported version 2.%d.%d\n",
 	       data[3], data[4]);
-	return;
+	break;
     }
+
+    if (tagdata != data)
+	free(tagdata);
+
+    return;
 }
 
 
