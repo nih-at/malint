@@ -362,7 +362,7 @@ unsynchronise(const unsigned char *data, int len, int *taglenp)
 	    continue;
 
 	if (i == len-2) {
-	    printf("    invalid unsynchronisation at end of data\n");
+	    printf("    incomplete unsynchronisation at end of data\n");
 	    continue;
 	}
 	if ((data[i+2] != 0x00) && ((data[i+2]&0xe0) != 0xe0))
