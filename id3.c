@@ -329,7 +329,7 @@ process_tag_34(const unsigned char *tag, int len)
 	return;
     }
     if (tag[9] & ID3_FRAME_FLAG_ENCRYPTION) {
-	printf("   version 2 compression not supported\n");
+	printf("   version 2 encryption not supported\n");
 	return;
     }
     if (tag[9] & ID3_FRAME_FLAG_DATA_LEN) {
