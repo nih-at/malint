@@ -147,7 +147,7 @@ parse_tag_v1(long pos, char *data, int n, int in_middle)
 	}
     }
     if (v11)
-	printf("   Track:\t%d\n", data[126]);
+	printf("   Track:\t%d\n", (unsigned char)data[126]);
 }
 
 
