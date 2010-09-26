@@ -263,7 +263,7 @@ process_file(FILE *f, char *fname)
 	    if (strncmp((char *)b, "TAG", 3) == 0) {
 		endtag_found = 1;
 		if (output & OUT_M_TAG)
-		    parse_tag_v1(len, b, 128, 0);
+		    parse_tag_v1(len, (char *)b, 128, 0);
 	    }
 	    else
 		len += 128;
@@ -394,7 +394,7 @@ process_file(FILE *f, char *fname)
 	    taginbitres = 1;
 	    n = inbuf_copy(&p, l, 128, ib);
 	    if (output & OUT_M_TAG) {
-		parse_tag_v1(l, p, n,
+		parse_tag_v1(l, (char *)p, n,
 			     endtag_found || (inbuf_getc(l+n, ib) != -1));
 	    }
 	    /* XXX: l+= n? */

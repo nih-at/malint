@@ -264,8 +264,8 @@ parse_tag_v23(unsigned char *data, int len)
 	if (len < 0)
 	    break;
 	if (p+len+10 > end)
-	    printf("   incomplete frame (missing %d bytes\n",
-		   (p+len+10)-end);
+	    printf("   incomplete frame (missing %d bytes)\n",
+		   (int)((p+len+10)-end));
 	else
 	    process_tag_34(p, len+10);
 	p += len + 10;
@@ -295,8 +295,8 @@ parse_tag_v24(unsigned char *data, int len)
 	if (len < 0)
 	    break;
 	if (p+len+10 > end)
-	    printf("   incomplete frame (missing %d bytes\n",
-		   (p+len+10)-end);
+	    printf("   incomplete frame (missing %d bytes)\n",
+		   (int)((p+len+10)-end));
 	else
 	    process_tag_34(p, len+10);
 	p += len + 10;
@@ -391,7 +391,7 @@ process_tag_34(const unsigned char *tag, int len)
 		    break;
 		}
 
-		printf("%.*s", sizeof(buf)-dstlen, buf);
+		printf("%.*s", (int)(sizeof(buf)-dstlen), buf);
 	    }
 
 	    iconv_close(cd);

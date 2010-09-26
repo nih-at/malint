@@ -42,7 +42,7 @@ inbuf_new(FILE *f, long length)
 
     inb->bsize = BUFSIZE;
     inb->allocsize = inb->bsize + ALLOCADD;
-    if ((inb->b=(char *)malloc(inb->allocsize)) == NULL) {
+    if ((inb->b=(unsigned char *)malloc(inb->allocsize)) == NULL) {
 	free(inb);
 	return NULL;
     }
@@ -218,7 +218,7 @@ inbuf_copy(unsigned char **b, long pos, long len, struct inbuf *inb)
 	n = (pos+len) % inb->bsize;
 	if (inb->allocsize < inb->bsize+n) {
 	    inb->allocsize = inb->bsize+n;
-	    if ((inb->b=(char *)realloc(inb->b, inb->allocsize)) == NULL)
+	    if ((inb->b=(unsigned char *)realloc(inb->b, inb->allocsize)) == NULL)
 		return -1;
 	}
 	memcpy(inb->b+inb->bsize, inb->b, n);
