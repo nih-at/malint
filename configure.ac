@@ -2,8 +2,9 @@ dnl Process this file with autoconf to produce a configure script.
 
 dnl init
 
-AC_INIT(malint.c)
-AM_INIT_AUTOMAKE(malint, 0.2)
+AC_INIT([malint], [0.2])
+AC_CONFIG_SRCDIR([malint.c])
+AM_INIT_AUTOMAKE
 AM_CONFIG_HEADER(config.h)
 
 # We want these before the checks, so the checks can modify their values.
