@@ -13,14 +13,6 @@ provided without reading (and parsing) the whole MPEG stream.
 
   If you make a binary distribution, please include a pointer to the
 distribution site:
-        ftp.nih.at /pub/nih/malint
-        http://www.nih.at/malint
+	http://nih.at/img2eps/
 
-  The latest version can always be found there and on the backup sites:
-        ftp.giga.or.at /pub/nih/malint
-        http://ftp.giga.or.at/pub/nih/malint
-
-        sunsite.univie.ac.at /pub/nih/malint
-        http://sunsite.univie.ac.at/pub/nih/malint
-
-  Mail suggestions and bug reports to <dillo@giga.or.at>.
+  Mail suggestions and bug reports to <malint@nih.at>.
