@@ -1,3 +1,5 @@
+**_This project is not actively maintained. Further updates are unlikely._**
+
 This is `malint`, an MP3 validator.
 
 It parses an MPEG audio stream and prints information about the
