@@ -1,5 +1,7 @@
 SUBDIRS=regress
 
+EXTRA_DIST=README.md
+
 LDADD=	@LIBOBJS@
 
 bin_PROGRAMS=malint

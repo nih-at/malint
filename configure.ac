@@ -4,7 +4,7 @@ dnl init
 
 AC_INIT([malint], [0.2])
 AC_CONFIG_SRCDIR([malint.c])
-AM_INIT_AUTOMAKE
+AM_INIT_AUTOMAKE(foreign)
 AM_CONFIG_HEADER(config.h)
 
 # We want these before the checks, so the checks can modify their values.
